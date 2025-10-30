@@ -1,0 +1,242 @@
+---
+title: "Two-Stage Single-Arm Designs for Time-to-Event Endpoints"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Two-Stage Single-Arm Designs for Time-to-Event Endpoints}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(blueprint)
+```
+
+## Introduction
+
+Single-arm phase II clinical trials are commonly used to evaluate whether new treatment agents have sufficient antitumor activity to warrant further investigation in randomized phase III trials. While many such trials use binary endpoints (e.g., tumor response), there are situations where time-to-event (TTE) endpoints are more appropriate.
+
+This vignette demonstrates how to use the `two_stage_single_arm_tte()` function to design optimal two-stage single-arm phase II trials with time-to-event endpoints, based on the methodology of Wu et al. (2020).
+
+## When to Use Time-to-Event Endpoints
+
+Time-to-event endpoints are particularly useful for:
+
+- **Cytostatic agents**: Drugs that prevent tumor growth but may not cause tumor shrinkage
+- **Molecularly targeted agents**: Treatments that may stabilize disease
+- **Immunotherapy**: Treatments where response may be delayed
+- **Progression-free survival (PFS)**: Common in oncology trials
+- **Event-free survival (EFS)**: Relevant in many disease settings
+
+## The One-Sample Log-Rank Test
+
+The design uses a one-sample log-rank test (OSLRT) to compare observed survival against a known null distribution. This approach:
+
+- Uses the entire survival distribution (not just a single time point)
+- Allows for restricted follow-up (practical for clinical trials)
+- Provides exact variance estimates for adequate power
+- Accommodates various survival distributions
+
+## Basic Usage
+
+### Example: Small-Cell Lung Cancer Trial
+
+Let's reproduce the design from Wu et al. (2020) for a trial evaluating immunotherapy as second-line treatment for small-cell lung cancer patients.
+
+**Background:**
+- Historical data: median PFS = 3.5 months (Topotecan)
+- Treatment goal: improve median PFS to 5 months
+- The historical PFS follows a Weibull distribution with shape parameter 1.47327
+
+**Design parameters:**
+
+```{r sclc_example}
+design <- two_stage_single_arm_tte(
+  shape = 1.47327,    # Weibull shape parameter
+  S0 = 0.5,           # Survival probability at 3.5 months (median)
+  x0 = 3.5,           # Time point for S0
+  hr = 0.5913,        # Hazard ratio (3.5/5)^1.47327
+  tf = 5,             # Follow-up duration (months)
+  rate = 2,           # Accrual rate (patients/month)
+  alpha = 0.05,       # Type I error (one-sided)
+  beta = 0.2,         # Type II error (80% power)
+  dist = "WB",        # Weibull distribution
+  restricted = FALSE  # Unrestricted follow-up model
+)
+
+print(design)
+```
+
+### Interpreting the Results
+
+The output contains three components:
+
+1. **Input parameters**: Confirms your design specifications
+2. **Single-stage design**: For comparison
+3. **Two-stage design**: The optimal design with early stopping
+
+For the two-stage design:
+
+- **n1**: Enroll this many patients in Stage 1
+- **c1**: Futility boundary - stop if Z₁ ≤ c₁
+- **n**: Total sample size if continuing to Stage 2
+- **c**: Efficacy boundary - reject H₀ if Z > c
+- **t1**: Calendar time for interim analysis
+- **MTSL**: Maximum total study length
+- **ES**: Expected sample size under H₀ (accounts for early stopping)
+- **PS**: Probability of stopping early under H₀
+
+## Conducting the Trial
+
+Based on the example above:
+
+### Stage 1
+1. Enroll `r design$Two_stage$n1` patients over approximately `r round(design$Two_stage$t1, 1)` months
+2. Follow each patient for up to 5 months or until an event (disease progression/death)
+3. Calculate the test statistic Z₁ at the interim analysis
+4. **Decision:**
+   - If Z₁ ≤ `r round(design$Two_stage$c1, 2)`, stop for futility (treatment not promising)
+   - If Z₁ > `r round(design$Two_stage$c1, 2)`, continue to Stage 2
+
+### Stage 2
+1. Continue enrolling to reach total of `r design$Two_stage$n` patients
+2. Follow all patients for up to 5 months or until event
+3. Calculate final test statistic Z
+4. **Decision:**
+   - If Z ≤ `r round(design$Two_stage$c, 2)`, conclude no efficacy
+   - If Z > `r round(design$Two_stage$c, 2)`, conclude treatment is promising
+
+## Effect of Follow-Up Duration
+
+Longer follow-up periods can reduce sample size requirements:
+
+```{r followup_comparison, eval = FALSE}
+# 5 months follow-up
+design_5mo <- two_stage_single_arm_tte(
+  shape = 1.47327, S0 = 0.5, x0 = 3.5, hr = 0.5913,
+  tf = 5, rate = 2, alpha = 0.05, beta = 0.2, dist = "WB",
+  restricted = FALSE
+)
+
+# 10 months follow-up
+design_10mo <- two_stage_single_arm_tte(
+  shape = 1.47327, S0 = 0.5, x0 = 3.5, hr = 0.5913,
+  tf = 10, rate = 2, alpha = 0.05, beta = 0.2, dist = "WB",
+  restricted = FALSE
+)
+
+comparison <- data.frame(
+  Follow_up = c("5 months", "10 months"),
+  Total_n = c(design_5mo$Two_stage$n, design_10mo$Two_stage$n),
+  Stage1_n = c(design_5mo$Two_stage$n1, design_10mo$Two_stage$n1),
+  Expected_n = c(design_5mo$Two_stage$ES, design_10mo$Two_stage$ES)
+)
+
+print(comparison)
+```
+
+## Supported Distributions
+
+The package supports five survival distributions:
+
+### 1. Weibull Distribution
+
+```{r weibull, eval = FALSE}
+design_wb <- two_stage_single_arm_tte(
+  shape = 1.5, S0 = 0.3, x0 = 1, hr = 0.65,
+  tf = 1, rate = 10, alpha = 0.05, beta = 0.2, dist = "WB",
+  restricted = FALSE
+)
+```
+
+### 2. Log-Normal Distribution
+
+```{r lognormal, eval = FALSE}
+design_ln <- two_stage_single_arm_tte(
+  shape = 0.5, S0 = 0.3, x0 = 1, hr = 0.65,
+  tf = 1, rate = 10, alpha = 0.05, beta = 0.2, dist = "LN",
+  restricted = FALSE
+)
+```
+
+### 3. Gamma Distribution
+
+```{r gamma, eval = FALSE}
+design_gm <- two_stage_single_arm_tte(
+  shape = 1, S0 = 0.3, x0 = 1, hr = 0.65,
+  tf = 1, rate = 10, alpha = 0.05, beta = 0.2, dist = "GM",
+  restricted = FALSE
+)
+```
+
+### 4. Log-Logistic Distribution
+
+```{r loglogistic, eval = FALSE}
+design_lg <- two_stage_single_arm_tte(
+  shape = 1, S0 = 0.3, x0 = 1, hr = 0.65,
+  tf = 1, rate = 10, alpha = 0.05, beta = 0.2, dist = "LG",
+  restricted = FALSE
+)
+```
+
+## Sensitivity Analysis
+
+It's often useful to examine how the design changes with different assumptions:
+
+```{r sensitivity, eval = FALSE}
+hr_values <- seq(0.5, 0.8, by = 0.1)
+results <- data.frame(
+  Hazard_Ratio = hr_values,
+  Single_Stage_n = NA,
+  Two_Stage_n = NA,
+  Two_Stage_ES = NA
+)
+
+for (i in seq_along(hr_values)) {
+  design <- two_stage_single_arm_tte(
+    shape = 1.47327, S0 = 0.5, x0 = 3.5, hr = hr_values[i],
+    tf = 5, rate = 2, alpha = 0.05, beta = 0.2, dist = "WB",
+    restricted = FALSE
+  )
+  results$Single_Stage_n[i] <- design$Single_stage$nsingle
+  results$Two_Stage_n[i] <- design$Two_stage$n
+  results$Two_Stage_ES[i] <- design$Two_stage$ES
+}
+
+print(results)
+```
+
+## Advantages of Two-Stage Designs
+
+1. **Early stopping**: Can terminate ineffective treatments early, saving resources
+2. **Efficiency**: Expected sample size under H₀ is typically less than single-stage
+3. **Flexibility**: Can adapt to various survival distributions
+4. **Exact inference**: Uses exact variance estimates for proper power
+
+## Comparison to Simon's Two-Stage Design
+
+Simon's two-stage design is widely used for binary endpoints. The `two_stage_single_arm_tte()` function serves as its counterpart for time-to-event endpoints:
+
+| Feature | Simon | two_stage_single_arm_tte |
+|---------|-------|----------------------|
+| Endpoint | Binary (response) | Time-to-event |
+| Test | Binomial test | One-sample log-rank |
+| Distributions | N/A | Weibull, log-normal, gamma, log-logistic, logspline |
+| Follow-up | Single time point | Restricted period |
+| Efficiency | High for binary | High for TTE |
+
+## References
+
+Wu, J., Chen, L., Wei, J., Weiss, H., & Chauhan, A. (2020). Optimal two-stage phase II survival trial design. *Pharmaceutical Statistics*, 19(3), 214-229. https://doi.org/10.1002/pst.1983
+
+## Session Info
+
+```{r session_info}
+sessionInfo()
+```

@@ -1,0 +1,38 @@
+url: ~
+template:
+  bootstrap: 5
+  theme: arrow-light
+  bslib:
+    bootswatch: flatly
+    primary: "#4972C1"
+    base_font: {google: "Roboto"}
+    heading_font: {google: "Big Shoulders Inline"}
+    code_font: {google: "Fira Code"}
+
+logo: man/figures/logo.jpg
+
+home:
+  sidebar:
+    structure: [links, license, authors, dev]
+  links:
+  - text: Wu et al. (2020) Paper
+    href: https://doi.org/10.1002/pst.1983
+
+reference:
+  - title: "Two-Stage Designs"
+    desc: "Functions for calculating two-stage single-arm trial designs with time-to-event endpoints"
+    contents:
+      - two_stage_single_arm_tte
+      - print.two_stage_design
+      - summary.two_stage_design
+      - print.summary.two_stage_design
+
+articles:
+  - title: "Getting Started"
+    contents:
+      - two-stage-tte
+
+navbar:
+  structure:
+    left:  [intro, reference, articles, tutorials, news]
+    right: [search, github]
