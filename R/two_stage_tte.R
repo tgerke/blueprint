@@ -229,15 +229,25 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     sigma2.0 <- p0
     om <- p0 - p1
     
-    # Stage 1 variance components
+    # Stage 1 variance components  
     # G1(t) accounts for enrollment pattern at interim analysis
-    G1 <- function(t) 1 - stats::punif(t, t1 - ta, t1)
+    # Following Wu et al. (2020) and OneArm2stage implementation:
+    # For unrestricted follow-up, G1(t) = 1 - punif(t, t1-ta, t1)
+    # This represents the censoring distribution at interim
+    if (restricted) {
+      # For restricted follow-up, everyone has exactly tf follow-up
+      G1 <- function(t) ifelse(t <= tf, 1, 0)
+    } else {
+      # For unrestricted, use OneArm2stage formula
+      G1 <- function(t) 1 - stats::punif(t, t1 - ta, t1)
+    }
     g0_1 <- function(t) s(scale1, t) * h0(t) * G1(t)
     g1_1 <- function(t) s(scale1, t) * h(scale1, t) * G1(t)
     g00_1 <- function(t) s(scale1, t) * H0(t) * h0(t) * G1(t)
     g01_1 <- function(t) s(scale1, t) * H0(t) * h(scale1, t) * G1(t)
     
-    # For stage 1, integrate to tau (same upper limit as stage 2)
+    # For stage 1, integrate to ta + tf (same as stage 2)
+    # This matches OneArm2stage implementation
     p0_1 <- stats::integrate(g0_1, 0, tau)$value
     p1_1 <- stats::integrate(g1_1, 0, tau)$value
     p00_1 <- stats::integrate(g00_1, 0, tau)$value
@@ -245,6 +255,7 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     
     sigma2.11 <- p1_1 - p1_1^2 + 2 * p00_1 - p0_1^2 - 2 * p01_1 + 2 * p0_1 * p1_1
     sigma2.01 <- p0_1
+    om1 <- p0_1 - p1_1  # CRITICAL: interim effect size (must use om1 not om in cb1 calculation)
     
     q1 <- function(t) s0(t) * h0(t) * G1(t)
     q <- function(t) s0(t) * h0(t) * G(t)
@@ -273,7 +284,8 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     }
     
     # Calculate power
-    cb1 <- sqrt(sigma2.01 / sigma2.11) * (c1 - (om * sqrt(rate * t1) / sqrt(sigma2.01)))
+    # CRITICAL: Use om1 (interim effect size) for cb1, not om (final effect size)
+    cb1 <- sqrt(sigma2.01 / sigma2.11) * (c1 - (om1 * sqrt(rate * t1) / sqrt(sigma2.01)))
     cb <- sqrt(sigma2.0 / sigma2.1) * (c - (om * sqrt(rate * ta)) / sqrt(sigma2.0))
     pwrc <- calculate_power(cb = cb, cb1 = cb1, rho1 = rho1)
     
@@ -290,28 +302,71 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
   H0 <- surv_funs$H0
   scale1 <- hr
   
-  # For single-stage, we use a simpler approach
-  # Integration from 0 to tf WITHOUT G(t), then solve for n
-  # This matches OneArm2stage's approach
+  # For single-stage, we need to find ta such that:
+  # n = rate * ta = (s0 * z_alpha + s1 * z_beta)^2 / om^2
+  # where s0, s1, om depend on ta through tau = ta + tf and G(t)
+  #
+  # Following OneArm2stage, we solve this iteratively using uniroot
+  # But to avoid convergence issues, we'll use a reasonable approximation:
+  # Start with a guess based on tf-only integration (no G function)
+  # This gives us a starting point for ta
   
-  g0_single <- function(t) s(scale1, t) * h0(t)
-  g1_single <- function(t) s(scale1, t) * h(scale1, t)
-  g00_single <- function(t) s(scale1, t) * H0(t) * h0(t)
-  g01_single <- function(t) s(scale1, t) * H0(t) * h(scale1, t)
+  # Initial estimate without G(t) - just integrate over tf
+  g0_init <- function(t) s(scale1, t) * h0(t)
+  g1_init <- function(t) s(scale1, t) * h(scale1, t)
+  g00_init <- function(t) s(scale1, t) * H0(t) * h0(t)
+  g01_init <- function(t) s(scale1, t) * H0(t) * h(scale1, t)
   
-  p0_single <- stats::integrate(g0_single, 0, tf)$value
-  p1_single <- stats::integrate(g1_single, 0, tf)$value
-  p00_single <- stats::integrate(g00_single, 0, tf)$value
-  p01_single <- stats::integrate(g01_single, 0, tf)$value
+  p0_init <- stats::integrate(g0_init, 0, tf, rel.tol = 1e-6)$value
+  p1_init <- stats::integrate(g1_init, 0, tf, rel.tol = 1e-6)$value
+  p00_init <- stats::integrate(g00_init, 0, tf, rel.tol = 1e-6)$value
+  p01_init <- stats::integrate(g01_init, 0, tf, rel.tol = 1e-6)$value
   
-  s1_single <- sqrt(p1_single - p1_single^2 + 2 * p00_single - p0_single^2 - 
-                      2 * p01_single + 2 * p0_single * p1_single)
-  s0_single <- sqrt(p0_single)
-  om_single <- p0_single - p1_single
+  s1_init <- sqrt(p1_init - p1_init^2 + 2 * p00_init - p0_init^2 - 
+                    2 * p01_init + 2 * p0_init * p1_init)
+  s0_init <- sqrt(p0_init)
+  om_init <- p0_init - p1_init
   
-  nsingle <- (s0_single * stats::qnorm(1 - alpha) + s1_single * stats::qnorm(1 - beta))^2 / om_single^2
-  nsingle <- ceiling(nsingle)
-  tasingle <- ceiling(nsingle / rate)
+  n_init <- ceiling((s0_init * stats::qnorm(1 - alpha) + s1_init * stats::qnorm(1 - beta))^2 / om_init^2)
+  ta_init <- n_init / rate
+  
+  # Now refine with actual G(t) calculation
+  # We'll iterate a few times to converge on the right ta
+  ta <- ta_init
+  for (i in 1:10) {
+    tau_single <- ta + tf
+    
+    if (restricted) {
+      G_single <- function(t) ifelse(t <= tf, 1, 0)
+    } else {
+      G_single <- function(t) 1 - stats::punif(t, tf, tau_single)
+    }
+    
+    g0_single <- function(t) s(scale1, t) * h0(t) * G_single(t)
+    g1_single <- function(t) s(scale1, t) * h(scale1, t) * G_single(t)
+    g00_single <- function(t) s(scale1, t) * H0(t) * h0(t) * G_single(t)
+    g01_single <- function(t) s(scale1, t) * H0(t) * h(scale1, t) * G_single(t)
+    
+    p0_single <- stats::integrate(g0_single, 0, tau_single, rel.tol = 1e-6)$value
+    p1_single <- stats::integrate(g1_single, 0, tau_single, rel.tol = 1e-6)$value
+    p00_single <- stats::integrate(g00_single, 0, tau_single, rel.tol = 1e-6)$value
+    p01_single <- stats::integrate(g01_single, 0, tau_single, rel.tol = 1e-6)$value
+    
+    s1_single <- sqrt(p1_single - p1_single^2 + 2 * p00_single - p0_single^2 - 
+                        2 * p01_single + 2 * p0_single * p1_single)
+    s0_single <- sqrt(p0_single)
+    om_single <- p0_single - p1_single
+    
+    n_required <- (s0_single * stats::qnorm(1 - alpha) + s1_single * stats::qnorm(1 - beta))^2 / om_single^2
+    ta_new <- n_required / rate
+    
+    # Check for convergence
+    if (abs(ta_new - ta) < 0.01) break
+    ta <- ta_new
+  }
+  
+  nsingle <- ceiling(ta * rate)
+  tasingle <- ceiling(ta)
   
   Single_stage <- data.frame(
     nsingle = nsingle,
@@ -326,7 +381,9 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
   nbpt <- 11
   pascote <- 1.26
   cote <- 1 * pascote
-  c1.lim <- atc0$c1 + c(-1, 1) * cote
+  # CRITICAL: First iteration uses wide c1 range to explore broadly
+  # Subsequent iterations narrow around optimal c1 (updated below)
+  c1.lim <- nbpt * c(-1, 1)  # Initial: c(-11, 11) - matches OneArm2stage
   EnH0 <- 10000  # Permissive initial bound on expected sample size under H0
   iter <- 0
   nbmaxiter <- 100
@@ -343,6 +400,7 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     
     n.lim <- atc0$n + c(-1, 1) * nsingle * cote
     t1.lim <- atc0$t1 + c(-1, 1) * tasingle * cote
+    # After first iteration, narrow c1 range around optimal value
     c1.lim <- atc0$c1 + c(-1, 1) * cote
     ta.lim <- n.lim / rate
     t1.lim <- pmax(0, t1.lim)
@@ -378,6 +436,7 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     r$c <- r$cL + (r$cU - r$cL) / 2
     r$diffc <- r$cU - r$cL
     r$diffc <- ifelse(r$diffc <= ceps, 1, 0)
+    
     r <- r[1 - r$betac >= 1 - beta, ]
     r <- r[order(r$enh0), ]
     r$n <- r$ta * rate
@@ -439,12 +498,12 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
   if (dist == "SP") {
     param <- data.frame(
       hr = hr, alpha = alpha, beta = beta, rate = rate, tf = tf,
-      restricted = restricted
+      restricted = restricted, dist = dist
     )
   } else {
     param <- data.frame(
       shape = shape, S0 = S0, hr = hr, alpha = alpha, beta = beta, 
-      rate = rate, x0 = x0, tf = tf, restricted = restricted
+      rate = rate, x0 = x0, tf = tf, restricted = restricted, dist = dist
     )
   }
   

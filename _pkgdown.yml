@@ -26,11 +26,20 @@ reference:
       - print.two_stage_design
       - summary.two_stage_design
       - print.summary.two_stage_design
+  - title: Simulation Functions
+    desc: Functions for simulating trials and validating operating characteristics
+    contents:
+    - simulate_trial
+    - simulate_operating_characteristics
 
 articles:
   - title: "Getting Started"
     contents:
       - two-stage-tte
+  - title: "Validation"
+    desc: "Comparison with published methodology"
+    contents:
+      - articles/wu-validation
 
 navbar:
   structure:

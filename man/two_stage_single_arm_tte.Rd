@@ -9,11 +9,12 @@ two_stage_single_arm_tte(
   S0 = NULL,
   x0 = NULL,
   hr,
-  x,
+  tf,
   rate,
   alpha = 0.05,
   beta = 0.2,
   dist,
+  restricted = FALSE,
   data = NULL
 )
 }
@@ -29,7 +30,13 @@ the null hypothesis.}
 \item{hr}{Numeric. Hazard ratio under the alternative hypothesis (proportional
 hazards model). Values < 1 indicate improvement.}
 
-\item{x}{Numeric. Restricted follow-up time period for each patient.}
+\item{tf}{Numeric. Follow-up time. Interpretation depends on \code{restricted}:
+\itemize{
+\item If \code{restricted = TRUE}: Each patient followed for exactly \code{tf}
+time units after enrollment (administrative censoring).
+\item If \code{restricted = FALSE}: Time from enrollment of last patient to
+end of study. Earlier patients have longer follow-up (unrestricted follow-up).
+}}
 
 \item{rate}{Numeric. Constant accrual rate (patients per time unit).}
 
@@ -44,6 +51,15 @@ hazards model). Values < 1 indicate improvement.}
 \item \code{"GM"}: Gamma distribution
 \item \code{"LG"}: Log-logistic distribution
 \item \code{"SP"}: Logspline distribution (requires \code{data} argument)
+}}
+
+\item{restricted}{Logical. Follow-up model (default \code{FALSE}):
+\itemize{
+\item \code{FALSE}: Unrestricted follow-up (Wu et al. 2020 default).
+Patients enrolled earlier have longer follow-up. Total study time =
+accrual time + \code{tf}.
+\item \code{TRUE}: Restricted follow-up. Each patient followed for exactly
+\code{tf} time units regardless of enrollment time.
 }}
 
 \item{data}{Data frame. Required only when \code{dist = "SP"}. Must contain
@@ -70,6 +86,23 @@ The function implements the optimal two-stage design algorithm described in
 Wu, Chen, Wei, Weiss, and Chauhan (2020). The design allows for early stopping
 for futility at the first stage based on a one-sample log-rank test.
 
+\strong{Follow-up Models:}
+
+The \code{restricted} parameter determines how patient follow-up is handled:
+
+\itemize{
+\item \strong{Unrestricted} (\code{restricted = FALSE}, default): The last
+patient enrolled is followed for \code{tf} time units. Patients enrolled
+earlier have progressively longer follow-up, up to \code{ta + tf} for the
+first patient (where \code{ta} is the accrual time). This matches the
+approach in Wu et al. (2020) and the \code{OneArm2stage} package.
+
+\item \strong{Restricted} (\code{restricted = TRUE}): Every patient is
+followed for exactly \code{tf} time units after their enrollment
+(administrative censoring at \code{tf}). This is simpler but may require
+larger sample sizes.
+}
+
 The design parameters are:
 \itemize{
 \item \code{n1}: Sample size for stage 1
@@ -89,20 +122,36 @@ Four parametric distributions are supported:
 \examples{
 \dontrun{
 # Example from Wu et al. (2020) - Small-cell lung cancer trial
-# Weibull distribution with 5 months restricted follow-up
-design <- two_stage_single_arm_tte(
+# Unrestricted follow-up (default)
+design_unrestricted <- two_stage_single_arm_tte(
   shape = 1.47327,
   S0 = 0.5,
   x0 = 3.5,
   hr = 0.5913,
-  x = 5,
+  tf = 5,
   rate = 2,
   alpha = 0.05,
   beta = 0.2,
-  dist = "WB"
+  dist = "WB",
+  restricted = FALSE  # Unrestricted (Wu et al. default)
 )
 
-print(design)
+# Restricted follow-up (each patient followed exactly 5 time units)
+design_restricted <- two_stage_single_arm_tte(
+  shape = 1.47327,
+  S0 = 0.5,
+  x0 = 3.5,
+  hr = 0.5913,
+  tf = 5,
+  rate = 2,
+  alpha = 0.05,
+  beta = 0.2,
+  dist = "WB",
+  restricted = TRUE
+)
+
+print(design_unrestricted)
+print(design_restricted)
 }
 
 }

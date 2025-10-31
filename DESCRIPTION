@@ -11,6 +11,8 @@ Description: A suite of functions to calculate sample size, power, and simulate
     methods for two-stage single-arm studies with time-to-event endpoints, among 
     other trial design scenarios.
 License: MIT + file LICENSE
+URL: https://tgerke.github.io/blueprint/
+BugReports: https://github.com/tgerke/blueprint/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
@@ -24,3 +26,4 @@ Suggests:
     progressr
 Config/testthat/edition: 3
 VignetteBuilder: knitr
+Config/Needs/website: rmarkdown
