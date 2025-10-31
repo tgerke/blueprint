@@ -19,6 +19,10 @@
 #'   \item{final_data}{Data frame of patient data at final analysis (if applicable)}
 #'   \item{interim_stat}{Test statistic value at interim}
 #'   \item{final_stat}{Test statistic value at final (if applicable)}
+#'   \item{interim_time}{Calendar time of interim analysis}
+#'   \item{final_time}{Calendar time of final analysis (if applicable)}
+#'   \item{interim_events}{Number of events observed at interim}
+#'   \item{final_events}{Number of events observed at final (if applicable)}
 #'
 #' @examples
 #' \dontrun{
@@ -66,25 +70,6 @@ simulate_trial <- function(design, shape, scale) {
   S0 <- design$param$S0
   x0 <- design$param$x0
   shape_h0 <- design$param$shape
-  
-  .simulate_two_stage_trial_internal(
-    n = n, n1 = n1, t1 = t1, c1 = c1, c = c, tf = tf, rate = rate,
-    dist = dist, shape = shape, scale = scale, restricted = restricted,
-    S0 = S0, x0 = x0, shape_h0 = shape_h0
-  )
-}
-
-
-#' Internal Function: Simulate a Two-Stage Single-Arm Trial
-#'
-#' @description
-#' Internal worker function that performs the actual simulation.
-#' Users should call `simulate_trial()` instead.
-#'
-#' @keywords internal
-#' @noRd
-.simulate_two_stage_trial_internal <- function(n, n1, t1, c1, c, tf, rate, dist, shape, scale,
-                                      restricted = FALSE, S0 = NULL, x0 = NULL, shape_h0 = NULL) {
   
   # Calculate H0 scale parameter from S0 and x0
   if (!is.null(S0) && !is.null(x0) && !is.null(shape_h0)) {
@@ -146,7 +131,7 @@ simulate_trial <- function(design, shape, scale) {
   # Calculate one-sample log-rank statistic at interim
   # Use proper expected events under H0 if parameters available
   if (!is.null(scale_h0)) {
-    interim_stat <- .calculate_logrank_stat(
+    interim_stat <- logrank_stat_wu(
       obs_times = interim_obs_time,
       event_ind = interim_event_ind,
       dist = dist,
@@ -176,7 +161,11 @@ simulate_trial <- function(design, shape, scale) {
       interim_data = interim_data,
       final_data = NULL,
       interim_stat = interim_stat,
-      final_stat = NA
+      final_stat = NA,
+      interim_time = t1,
+      final_time = NA,
+      interim_events = sum(interim_event_ind),
+      final_events = NA
     ))
   }
   
@@ -206,7 +195,7 @@ simulate_trial <- function(design, shape, scale) {
   
   # Calculate one-sample log-rank statistic at final
   if (!is.null(scale_h0)) {
-    final_stat <- .calculate_logrank_stat(
+    final_stat <- logrank_stat_wu(
       obs_times = final_obs_time,
       event_ind = final_event_ind,
       dist = dist,
@@ -236,98 +225,12 @@ simulate_trial <- function(design, shape, scale) {
     interim_data = interim_data,
     final_data = final_data,
     interim_stat = interim_stat,
-    final_stat = final_stat
+    final_stat = final_stat,
+    interim_time = t1,
+    final_time = t_final,
+    interim_events = sum(interim_event_ind),
+    final_events = sum(final_event_ind)
   ))
-}
-
-
-#' Simulate Operating Characteristics of Two-Stage Design
-#'
-#' @description
-#' Runs multiple simulations to estimate operating characteristics (Type I error,
-#' power, expected sample size) for a two-stage single-arm trial design.
-#'
-#' @param design A design object from `two_stage_single_arm_tte()` or similar
-#' @param shape Shape parameter for survival distribution 
-#' @param scale_h0 Scale parameter under null hypothesis
-#' @param scale_h1 Scale parameter under alternative hypothesis
-#' @param n_sims Number of simulations to run (default: 1000)
-#' @param seed Random seed for reproducibility (optional)
-#'
-#' @return A list containing:
-#'   \item{type1_error}{Estimated Type I error rate}
-#'   \item{power}{Estimated power}
-#'   \item{expected_n_h0}{Expected sample size under H0}
-#'   \item{expected_n_h1}{Expected sample size under H1}
-#'   \item{prob_early_stop_h0}{Probability of early stopping under H0}
-#'   \item{prob_early_stop_h1}{Probability of early stopping under H1}
-#'   \item{results_h0}{Individual simulation results under H0}
-#'   \item{results_h1}{Individual simulation results under H1}
-#'
-#' @examples
-#' \dontrun{
-#' # Create a design
-#' design <- two_stage_single_arm_tte(
-#'   shape = 1.47327, S0 = 0.5, x0 = 3.5, hr = 0.5913,
-#'   tf = 5, rate = 2, alpha = 0.05, beta = 0.2,
-#'   dist = "WB", restricted = FALSE
-#' )
-#' 
-#' # Calculate scale parameters
-#' scale_h0 <- 3.5 / (-log(0.5))^(1/1.47327)
-#' scale_h1 <- scale_h0 / (0.5913^(1/1.47327))
-#' 
-#' # Run simulations
-#' sim_results <- simulate_operating_characteristics(
-#'   design = design,
-#'   shape = 1.47327,
-#'   scale_h0 = scale_h0,
-#'   scale_h1 = scale_h1,
-#'   n_sims = 1000,
-#'   seed = 123
-#' )
-#' 
-#' # Check operating characteristics
-#' cat("Type I Error:", sim_results$type1_error, "\n")
-#' cat("Power:", sim_results$power, "\n")
-#' }
-#'
-#' @export
-simulate_operating_characteristics <- function(design, shape,
-                                                scale_h0, scale_h1,
-                                                n_sims = 1000,
-                                                seed = NULL) {
-  
-  if (!is.null(seed)) set.seed(seed)
-  
-  # Simulate under H0
-  results_h0 <- replicate(n_sims, {
-    simulate_trial(design = design, shape = shape, scale = scale_h0)
-  }, simplify = FALSE)
-  
-  # Simulate under H1
-  results_h1 <- replicate(n_sims, {
-    simulate_trial(design = design, shape = shape, scale = scale_h1)
-  }, simplify = FALSE)
-  
-  # Calculate operating characteristics
-  type1_error <- mean(sapply(results_h0, function(x) x$reject_h0))
-  power <- mean(sapply(results_h1, function(x) x$reject_h0))
-  expected_n_h0 <- mean(sapply(results_h0, function(x) x$enrolled_n))
-  expected_n_h1 <- mean(sapply(results_h1, function(x) x$enrolled_n))
-  prob_early_stop_h0 <- mean(sapply(results_h0, function(x) x$stopped_early))
-  prob_early_stop_h1 <- mean(sapply(results_h1, function(x) x$stopped_early))
-  
-  list(
-    type1_error = type1_error,
-    power = power,
-    expected_n_h0 = expected_n_h0,
-    expected_n_h1 = expected_n_h1,
-    prob_early_stop_h0 = prob_early_stop_h0,
-    prob_early_stop_h1 = prob_early_stop_h1,
-    results_h0 = results_h0,
-    results_h1 = results_h1
-  )
 }
 
 
@@ -363,62 +266,4 @@ simulate_operating_characteristics <- function(design, shape,
     stop("Unsupported distribution for H0 calculation")
   }
   return(scale)
-}
-
-
-#' Calculate One-Sample Log-Rank Test Statistic
-#'
-#' @description
-#' Computes the one-sample log-rank test statistic for comparing observed
-#' survival times against a null hypothesis survival function.
-#'
-#' Based on Wu et al. (2020) and OneArm2stage implementation.
-#' Uses cumulative hazard under H0 for expected events.
-#'
-#' @keywords internal
-#' @noRd
-.calculate_logrank_stat <- function(obs_times, event_ind, dist, shape_h0, scale_h0) {
-  
-  # Create cumulative hazard function under H0
-  # H(t) = -log(S(t))
-  H0 <- switch(dist,
-    "WB" = function(t) {
-      # H(t) = (t/scale)^shape for Weibull
-      (t / scale_h0)^shape_h0
-    },
-    "LN" = function(t) {
-      # H(t) = -log(1 - plnorm(...))
-      S <- 1 - plnorm(t, meanlog = scale_h0, sdlog = shape_h0)
-      -log(pmax(S, 1e-10))  # Avoid log(0)
-    },
-    "LG" = function(t) {
-      # H(t) = -log(S(t)) where S(t) = 1/(1+(t/scale)^shape)
-      -log(1 / (1 + (t/scale_h0)^shape_h0))
-    },
-    "GM" = function(t) {
-      S <- 1 - pgamma(t, shape = shape_h0, scale = scale_h0)
-      -log(pmax(S, 1e-10))
-    },
-    stop("Unsupported distribution")
-  )
-  
-  # Expected events = sum of cumulative hazards at observation times
-  # This matches OneArm2stage: M=H(shape,scale0,xt); E=sum(M)
-  expected_events <- sum(H0(obs_times))
-  
-  # Observed events
-  observed_events <- sum(event_ind)
-  
-  # Test statistic: Z = (E - O) / sqrt(E)
-  # OneArm2stage uses variance ≈ E (Poisson approximation)
-  # This is simpler than the full variance formula
-  # NOTE: Sign convention - positive Z favors H1 (fewer events than expected)
-  if (expected_events > 0) {
-    Z <- (expected_events - observed_events) / sqrt(expected_events)
-  } else {
-    # Degenerate case
-    Z <- 0
-  }
-  
-  return(Z)
 }

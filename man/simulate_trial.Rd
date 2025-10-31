@@ -22,6 +22,10 @@ A list containing:
 \item{final_data}{Data frame of patient data at final analysis (if applicable)}
 \item{interim_stat}{Test statistic value at interim}
 \item{final_stat}{Test statistic value at final (if applicable)}
+\item{interim_time}{Calendar time of interim analysis}
+\item{final_time}{Calendar time of final analysis (if applicable)}
+\item{interim_events}{Number of events observed at interim}
+\item{final_events}{Number of events observed at final (if applicable)}
 }
 \description{
 Simulates a single realization of a trial based on a design object created by

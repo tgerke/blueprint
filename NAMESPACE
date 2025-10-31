@@ -3,6 +3,7 @@
 S3method(print,summary.two_stage_design)
 S3method(print,two_stage_design)
 S3method(summary,two_stage_design)
+export(logrank_stat_wu)
 export(simulate_operating_characteristics)
 export(simulate_trial)
 export(two_stage_single_arm_tte)
