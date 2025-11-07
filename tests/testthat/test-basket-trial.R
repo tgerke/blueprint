@@ -60,98 +60,125 @@ test_that("basket trial validates inputs correctly", {
 })
 
 
-test_that("homogeneous design approximately matches Jing et al. 2022 Table 1 - K=3, p0=10%, pa=30%", {
+test_that("homogeneous design approximately matches Jing et al. 2022 Table A1 - K=3, p0=10%, pa=25%", {
   skip_on_cran()
   
-  # Jing et al. (2022) Table 1, Design 1: K=3, p0=10%, pa=30%
-  # Expected: S=57, alpha1=0.10, alpha2=0.90, EN(H0)=68.6
-  # Note: Their approach uses Bayesian information borrowing, ours is frequentist
-  # We expect similar but not identical results
+  # Jing et al. (2022) Contemporary Clinical Trials, Table A1
+  # K=3 homogeneous: p0=10%, pa=25%
+  # Expected: S=38, alpha1=0.38, R1=5, N=35, r=6, alpha2=0.028, EN(H0)=60.1
+  #
+  # Jing's method uses constrained optimization: fix N, r per indication using
+  # exact binomial test (constraint_alpha, constraint_beta), then optimize S, α₁, α₂
+  # We use similar constraints to get comparable results
   
   design <- two_stage_basket_trial(
     K = 3,
     p0 = 0.10,
-    pa = 0.30,
+    pa = 0.25,
     alpha = 0.05,
     beta = 0.20,
-    constraint_alpha = 0.05,
-    constraint_beta = 0.20,
-    n_sims_design = 200,  # Fast enough with optimized code (~1 min)
-    seed = 20221106
+    constraint_alpha = 0.10,  # Per-indication Type I error constraint
+    constraint_beta = 0.20,   # Per-indication Type II error constraint
+    n_sims_design = 200,      # Fast enough with optimized code (~1 min)
+    seed = 20251107
   )
   
-  # Check basic constraints are met
+  # PRIMARY: Check global constraints are met
   expect_lte(design$performance$type1_error, 0.05)
-  expect_gte(design$performance$expected_power, 0.75)  # Allow some slack
+  expect_gte(design$performance$expected_power, 0.75)
   
-  # Design should be reasonably efficient
-  # Jing's EN(H0) = 68.6, we expect similar magnitude
-  expect_lt(design$design$EN_H0, 100)
-  expect_gt(design$design$S, 10)  # Should have reasonable Stage I size (relaxed from 30)
+  # SECONDARY: Design parameters should be in ballpark of Jing et al.
+  # With constraints, results should be more comparable (but still not exact due to
+  # different optimization algorithms and Monte Carlo variation)
   
-  # Stage I significance should be moderate (not too strict or too lenient)
-  expect_gt(design$design$alpha1, 0.05)
-  expect_lt(design$design$alpha1, 0.50)
+  # S: Expected ~38, allow ±20
+  expect_gte(design$design$S, 18)
+  expect_lte(design$design$S, 58)
+  
+  # EN(H0): Expected ~60, allow ±20
+  expect_gte(design$design$EN_H0, 40)
+  expect_lte(design$design$EN_H0, 80)
+  
+  # N per indication: Expected ~35, allow ±20
+  expect_gte(design$design$N[[1]][1], 15)
+  expect_lte(design$design$N[[1]][1], 55)
 })
 
 
-test_that("homogeneous design approximately matches Jing et al. 2022 Table 1 - K=4, p0=10%, pa=30%", {
+test_that("homogeneous design approximately matches Jing et al. 2022 Table A1 - K=4, p0=10%, pa=25%", {
   skip_on_cran()
   
-  # Jing et al. (2022) Table 1, Design 2: K=4, p0=10%, pa=30%
-  # Expected: S=34, alpha1=0.15, alpha2=0.60, EN(H0)=61.0
+  # Jing et al. (2022) Contemporary Clinical Trials, Table A1
+  # K=4 homogeneous: p0=10%, pa=25%
+  # Expected: S=47, alpha1=0.36, R1=6, N=32, r=5, alpha2=0.021, EN(H0)=73.6
   
   design <- two_stage_basket_trial(
     K = 4,
     p0 = 0.10,
-    pa = 0.30,
+    pa = 0.25,
     alpha = 0.05,
     beta = 0.20,
-    constraint_alpha = 0.05,
+    constraint_alpha = 0.10,
     constraint_beta = 0.20,
     n_sims_design = 150,  # Fast enough (~2 min)
-    seed = 20221107
+    seed = 20251107
   )
   
-  # Check constraints
+  # PRIMARY: Check constraints
   expect_lte(design$performance$type1_error, 0.05)
   expect_gte(design$performance$expected_power, 0.75)
   
-  # Design efficiency checks
-  expect_lt(design$design$EN_H0, 100)
-  expect_gt(design$design$S, 20)
+  # SECONDARY: Comparable to Jing et al. (with constraints, should be closer)
+  # S: Expected ~47, allow ±22
+  expect_gte(design$design$S, 25)
+  expect_lte(design$design$S, 69)
+  
+  # EN(H0): Expected ~74, allow ±25
+  expect_gte(design$design$EN_H0, 49)
+  expect_lte(design$design$EN_H0, 99)
+  
+  # N per indication: Expected ~32, allow ±20
+  expect_gte(design$design$N[[1]][1], 12)
+  expect_lte(design$design$N[[1]][1], 52)
 })
 
 
-test_that("heterogeneous design approximately matches Jing et al. 2022 Table A1", {
+test_that("heterogeneous design approximately matches Jing et al. 2022 Table 1 - K=4", {
   skip_on_cran()
   
-  # Jing et al. (2022) Table A1: K=4 heterogeneous
-  # p0=(0.10, 0.15, 0.20, 0.25), pa=(0.30, 0.35, 0.40, 0.45)
-  # Expected: S=58, alpha1=0.20, alpha2=0.10, Mean EN=92.3
+  # Jing et al. (2022) Contemporary Clinical Trials, Table 1
+  # K=4 heterogeneous: p0=(10,10,20,20), pa=(25,25,35,35) [15% improvement]
+  # Expected: S=61, alpha1=0.42, N=(31,31,42,42), r=(5,5,11,11), alpha2=0.016, EN(H0)=90.9
+  #
+  # NOTE: Heterogeneous setting requires constraint parameters
   
   design <- two_stage_basket_trial(
     K = 4,
-    p0 = c(0.10, 0.15, 0.20, 0.25),
-    pa = c(0.30, 0.35, 0.40, 0.45),
+    p0 = c(0.10, 0.10, 0.20, 0.20),
+    pa = c(0.25, 0.25, 0.35, 0.35),
     alpha = 0.05,
     beta = 0.20,
-    constraint_alpha = 0.05,
+    constraint_alpha = 0.10,  # Required for heterogeneous
     constraint_beta = 0.20,
     n_sims_design = 150,  # Fast enough (~2 min)
-    seed = 20221108
+    seed = 20251107
   )
   
-  # Check constraints
+  # PRIMARY: Check constraints
   expect_lte(design$performance$type1_error, 0.05)
   expect_gte(design$performance$expected_power, 0.75)
   
   # Design should handle heterogeneity appropriately
   expect_false(design$param$homogeneous)
   
-  # Efficiency check
-  expect_lt(design$design$EN_H0, 150)
-  expect_gt(design$design$S, 30)
+  # SECONDARY: Reasonable ranges (relaxed tolerances)
+  # S: Allow ±25 from published 61
+  expect_gte(design$design$S, 36)
+  expect_lte(design$design$S, 86)
+  
+  # EN(H0): Allow ±20 from published 90.9
+  expect_gte(design$design$EN_H0, 70)
+  expect_lte(design$design$EN_H0, 111)
 })
 
 

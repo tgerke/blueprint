@@ -131,20 +131,21 @@ print.basket_trial_design <- function(x, ...) {
   
   cat("Design Parameters:\n")
   cat("  Stage I (Aggregated Futility Analysis):\n")
-  cat(sprintf("    Total sample size: %d patients\n", x$design$S))
-  cat(sprintf("    Significance level: %.3f\n", x$design$alpha1))
-  cat(sprintf("    Critical value R1: %d (continue if >=%d responders)\n", 
+  cat(sprintf("    Total sample size across all indications: S = %d patients\n", x$design$S))
+  cat(sprintf("    Significance level: α₁ = %.3f\n", x$design$alpha1))
+  cat(sprintf("    Critical value: R₁ = %d (continue if ≥%d total responders)\n", 
               x$design$R1, x$design$R1))
+  cat("    Note: Allocation per indication adapts to enrollment rates\n")
   cat("\n")
   
   cat("  Stage II (Pruning and Pooling):\n")
-  cat("    Sample sizes per indication:\n")
+  cat("    Sample sizes per indication (total including Stage I):\n")
   for (i in 1:K) {
-    cat(sprintf("      Indication %d: N=%d, r=%d (prune if <%d responders)\n", 
+    cat(sprintf("      Indication %d: N=%d, r=%d (prune if <%d responders at Stage II)\n", 
                 i, N[i], r[i], r[i]))
   }
-  cat(sprintf("    Total sample size: %d patients\n", x$design$total_N))
-  cat(sprintf("    Significance level: %.3f\n", x$design$alpha2))
+  cat(sprintf("    Total maximum sample size: %d patients\n", x$design$total_N))
+  cat(sprintf("    Significance level: α₂ = %.3f\n", x$design$alpha2))
   cat("\n")
   
   cat("Operating Characteristics:\n")

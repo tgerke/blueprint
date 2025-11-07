@@ -38,22 +38,33 @@
 #' \strong{Design Structure:}
 #' 
 #' \itemize{
-#'   \item \strong{Stage I (Aggregated Futility Analysis):} After S patients are 
-#'     enrolled across all K indications, pool all data together and test at 
-#'     significance level α₁*. If ≥ R₁ responders observed, continue to Stage II. 
-#'     Otherwise, stop for futility. The sample size per indication (n₁ₖ) is 
-#'     \emph{not} pre-specified and adapts to enrollment rates, with only the 
-#'     total S constrained.
+#'   \item \strong{Stage I (Aggregated Futility Analysis):} After S patients 
+#'     total are enrolled across all K indications (note: S is the \emph{total} 
+#'     across all indications, not per indication), pool all data together and 
+#'     test at significance level α₁. If ≥ R₁ responders observed across all 
+#'     indications combined, continue to Stage II. Otherwise, stop entire trial 
+#'     for futility. The sample size per indication (n₁ₖ) is \emph{not} 
+#'     pre-specified and adapts to enrollment rates, with only the total S 
+#'     constrained (∑n₁ₖ = S).
 #'     
 #'   \item \strong{Stage II (Pruning and Pooling):} Enroll additional patients 
-#'     so each indication has Nₖ total patients. For final analysis:
+#'     so each indication k has Nₖ total patients (note: Nₖ is per indication). 
+#'     For final analysis:
 #'     \enumerate{
-#'       \item \strong{Prune:} Exclude indication k if it has < rₖ responders
+#'       \item \strong{Prune:} Exclude indication k if it has < rₖ responders at 
+#'         end of Stage II
 #'       \item \strong{Pool:} Test pooled data from remaining (non-pruned) 
-#'         indications at significance level α₂*
+#'         indications at significance level α₂
 #'       \item \strong{Claim:} Drug is effective in pooled indications if ≥ R₂ 
 #'         total responders observed
 #'     }
+#' }
+#' 
+#' \strong{Notation Clarification:}
+#' \itemize{
+#'   \item \strong{S}: Total Stage I sample size \emph{across all K indications}
+#'   \item \strong{Nₖ}: Total sample size for indication k (Stage I + Stage II combined)
+#'   \item \strong{n₁ₖ}: Stage I sample size for indication k (adapts to enrollment; ∑n₁ₖ = S)
 #' }
 #' 
 #' \strong{Hypotheses:}
