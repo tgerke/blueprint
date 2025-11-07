@@ -97,20 +97,20 @@ For the two-stage design:
 Based on the example above:
 
 ### Stage 1
-1. Enroll `r design$Two_stage$n1` patients over approximately `r round(design$Two_stage$t1, 1)` months
+1. Enroll `r design$two_stage$n1` patients over approximately `r round(design$two_stage$t1, 1)` months
 2. Follow each patient for up to 5 months or until an event (disease progression/death)
 3. Calculate the test statistic Z₁ at the interim analysis
 4. **Decision:**
-   - If Z₁ ≤ `r round(design$Two_stage$c1, 2)`, stop for futility (treatment not promising)
-   - If Z₁ > `r round(design$Two_stage$c1, 2)`, continue to Stage 2
+   - If Z₁ ≤ `r round(design$two_stage$c1, 2)`, stop for futility (treatment not promising)
+   - If Z₁ > `r round(design$two_stage$c1, 2)`, continue to Stage 2
 
 ### Stage 2
-1. Continue enrolling to reach total of `r design$Two_stage$n` patients
+1. Continue enrolling to reach total of `r design$two_stage$n` patients
 2. Follow all patients for up to 5 months or until event
 3. Calculate final test statistic Z
 4. **Decision:**
-   - If Z ≤ `r round(design$Two_stage$c, 2)`, conclude no efficacy
-   - If Z > `r round(design$Two_stage$c, 2)`, conclude treatment is promising
+   - If Z ≤ `r round(design$two_stage$c, 2)`, conclude no efficacy
+   - If Z > `r round(design$two_stage$c, 2)`, conclude treatment is promising
 
 ## Effect of Follow-Up Duration
 
@@ -133,9 +133,9 @@ design_10mo <- two_stage_single_arm_tte(
 
 comparison <- data.frame(
   Follow_up = c("5 months", "10 months"),
-  Total_n = c(design_5mo$Two_stage$n, design_10mo$Two_stage$n),
-  Stage1_n = c(design_5mo$Two_stage$n1, design_10mo$Two_stage$n1),
-  Expected_n = c(design_5mo$Two_stage$ES, design_10mo$Two_stage$ES)
+  Total_n = c(design_5mo$two_stage$n, design_10mo$two_stage$n),
+  Stage1_n = c(design_5mo$two_stage$n1, design_10mo$two_stage$n1),
+  Expected_n = c(design_5mo$two_stage$ES, design_10mo$two_stage$ES)
 )
 
 print(comparison)
@@ -204,9 +204,9 @@ for (i in seq_along(hr_values)) {
     tf = 5, rate = 2, alpha = 0.05, beta = 0.2, dist = "WB",
     restricted = FALSE
   )
-  results$Single_Stage_n[i] <- design$Single_stage$nsingle
-  results$Two_Stage_n[i] <- design$Two_stage$n
-  results$Two_Stage_ES[i] <- design$Two_stage$ES
+  results$Single_Stage_n[i] <- design$single_stage$nsingle
+  results$Two_Stage_n[i] <- design$two_stage$n
+  results$Two_Stage_ES[i] <- design$two_stage$ES
 }
 
 print(results)

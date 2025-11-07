@@ -82,9 +82,9 @@
 #' @return A list with three elements:
 #'   \describe{
 #'     \item{param}{Data frame of input parameters}
-#'     \item{Single_stage}{Data frame with single-stage design parameters:
+#'     \item{single_stage}{Data frame with single-stage design parameters:
 #'       \code{nsingle}, \code{tasingle}, \code{csingle}}
-#'     \item{Two_stage}{Data frame with two-stage design parameters:
+#'     \item{two_stage}{Data frame with two-stage design parameters:
 #'       \code{n1}, \code{c1}, \code{n}, \code{c}, \code{t1}, \code{MTSL}, 
 #'       \code{ES}, \code{PS}}
 #'   }
@@ -166,25 +166,6 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
   
   if (tf <= 0) {
     stop("tf must be positive")
-  }
-  
-  # Helper function to calculate alpha
-  calculate_alpha <- function(c2, c1, rho0) {
-    fun1 <- function(z, c1, rho0) {
-      stats::dnorm(z) * stats::pnorm((rho0 * z - c1) / sqrt(1 - rho0^2))
-    }
-    alpha_val <- stats::integrate(fun1, lower = c2, upper = Inf, c1, rho0)$value
-    return(alpha_val)
-  }
-  
-  # Helper function to calculate power
-  calculate_power <- function(cb, cb1, rho1) {
-    fun2 <- function(z, cb1, rho1) {
-      stats::dnorm(z) * stats::pnorm((rho1 * z - cb1) / sqrt(1 - rho1^2))
-    }
-    pwr <- stats::integrate(fun2, lower = cb, upper = Inf, cb1 = cb1, 
-                           rho1 = rho1)$value
-    return(pwr)
   }
   
   # Core function for computing design parameters
@@ -274,7 +255,7 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     while ((abs(alphac - alpha) > alphaeps || cU - cL > ceps) && iter < nbmaxiter) {
       iter <- iter + 1
       c <- (cL + cU) / 2
-      alphac <- calculate_alpha(c, c1, rho0)
+      alphac <- .calculate_alpha(c, c1, rho0)
       
       if (alphac > alpha) {
         cL <- c
@@ -287,7 +268,7 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     # CRITICAL: Use om1 (interim effect size) for cb1, not om (final effect size)
     cb1 <- sqrt(sigma2.01 / sigma2.11) * (c1 - (om1 * sqrt(rate * t1) / sqrt(sigma2.01)))
     cb <- sqrt(sigma2.0 / sigma2.1) * (c - (om * sqrt(rate * ta)) / sqrt(sigma2.0))
-    pwrc <- calculate_power(cb = cb, cb1 = cb1, rho1 = rho1)
+    pwrc <- .calculate_power(cb = cb, cb1 = cb1, rho1 = rho1)
     
     res <- c(cL, cU, alphac, 1 - pwrc, rho0, rho1, cb1, cb)
     return(res)
@@ -368,7 +349,7 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
   nsingle <- ceiling(ta * rate)
   tasingle <- ceiling(ta)
   
-  Single_stage <- data.frame(
+  single_stage <- data.frame(
     nsingle = nsingle,
     tasingle = tasingle,
     csingle = stats::qnorm(1 - alpha)
@@ -507,7 +488,7 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     )
   }
   
-  Two_stage <- data.frame(
+  two_stage <- data.frame(
     n1 = ceiling(des$t1 * rate),
     c1 = des$c1,
     n = ceiling(des$ta * rate),
@@ -518,13 +499,15 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     PS = des$pap
   )
   
-  DESIGN <- list(
+  design <- list(
     param = param,
-    Single_stage = Single_stage,
-    Two_stage = Two_stage
+    single_stage = single_stage,
+    two_stage = two_stage
   )
   
-  return(DESIGN)
+  class(design) <- "two_stage_design"
+  
+  return(design)
 }
 
 
@@ -542,52 +525,93 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     # Weibull distribution
     scale0 <- x0 / (-log(S0))^(1/shape)
     
-    s0 <- function(u) 1 - stats::pweibull(u, shape, scale0)
-    f0 <- function(u) stats::dweibull(u, shape, scale0)
-    h0 <- function(u) f0(u) / s0(u)
-    H0 <- function(u) -log(s0(u))
-    s <- function(b, u) s0(u)^b
-    h <- function(b, u) b * f0(u) / s0(u)
-    H <- function(b, u) -b * log(s0(u))
+    list(
+      s0 = function(u) 1 - stats::pweibull(u, shape, scale0),
+      f0 = function(u) stats::dweibull(u, shape, scale0),
+      h0 = function(u) {
+        f <- stats::dweibull(u, shape, scale0)
+        s <- 1 - stats::pweibull(u, shape, scale0)
+        f / s
+      },
+      H0 = function(u) -log(1 - stats::pweibull(u, shape, scale0)),
+      s = function(b, u) (1 - stats::pweibull(u, shape, scale0))^b,
+      h = function(b, u) {
+        f <- stats::dweibull(u, shape, scale0)
+        s <- 1 - stats::pweibull(u, shape, scale0)
+        b * f / s
+      },
+      H = function(b, u) -b * log(1 - stats::pweibull(u, shape, scale0))
+    )
     
   } else if (dist == "LN") {
     # Log-normal distribution
     scale0 <- log(x0) - shape * stats::qnorm(1 - S0)
     
-    s0 <- function(u) 1 - stats::plnorm(u, scale0, shape)
-    f0 <- function(u) stats::dlnorm(u, scale0, shape)
-    h0 <- function(u) f0(u) / s0(u)
-    H0 <- function(u) -log(s0(u))
-    s <- function(b, u) s0(u)^b
-    h <- function(b, u) b * f0(u) / s0(u)
-    H <- function(b, u) -b * log(s0(u))
+    list(
+      s0 = function(u) 1 - stats::plnorm(u, scale0, shape),
+      f0 = function(u) stats::dlnorm(u, scale0, shape),
+      h0 = function(u) {
+        f <- stats::dlnorm(u, scale0, shape)
+        s <- 1 - stats::plnorm(u, scale0, shape)
+        f / s
+      },
+      H0 = function(u) -log(1 - stats::plnorm(u, scale0, shape)),
+      s = function(b, u) (1 - stats::plnorm(u, scale0, shape))^b,
+      h = function(b, u) {
+        f <- stats::dlnorm(u, scale0, shape)
+        s <- 1 - stats::plnorm(u, scale0, shape)
+        b * f / s
+      },
+      H = function(b, u) -b * log(1 - stats::plnorm(u, scale0, shape))
+    )
     
   } else if (dist == "LG") {
     # Log-logistic distribution
     scale0 <- x0 / (1/S0 - 1)^(1/shape)
     
-    s0 <- function(u) 1 / (1 + (u/scale0)^shape)
-    f0 <- function(u) {
-      (shape/scale0) * (u/scale0)^(shape - 1) / (1 + (u/scale0)^shape)^2
-    }
-    h0 <- function(u) f0(u) / s0(u)
-    H0 <- function(u) -log(s0(u))
-    s <- function(b, u) s0(u)^b
-    h <- function(b, u) b * f0(u) / s0(u)
-    H <- function(b, u) -b * log(s0(u))
+    list(
+      s0 = function(u) 1 / (1 + (u/scale0)^shape),
+      f0 = function(u) {
+        (shape/scale0) * (u/scale0)^(shape - 1) / (1 + (u/scale0)^shape)^2
+      },
+      h0 = function(u) {
+        num <- (shape/scale0) * (u/scale0)^(shape - 1)
+        denom <- (1 + (u/scale0)^shape)^2
+        s <- 1 / (1 + (u/scale0)^shape)
+        (num / denom) / s
+      },
+      H0 = function(u) -log(1 / (1 + (u/scale0)^shape)),
+      s = function(b, u) (1 / (1 + (u/scale0)^shape))^b,
+      h = function(b, u) {
+        f <- (shape/scale0) * (u/scale0)^(shape - 1) / (1 + (u/scale0)^shape)^2
+        s <- 1 / (1 + (u/scale0)^shape)
+        b * f / s
+      },
+      H = function(b, u) -b * log(1 / (1 + (u/scale0)^shape))
+    )
     
   } else if (dist == "GM") {
     # Gamma distribution
     root0 <- function(t) 1 - stats::pgamma(x0, shape, t) - S0
     scale0 <- stats::uniroot(root0, c(0, 10))$root
     
-    s0 <- function(u) 1 - stats::pgamma(u, shape, scale0)
-    f0 <- function(u) stats::dgamma(u, shape, scale0)
-    h0 <- function(u) f0(u) / s0(u)
-    H0 <- function(u) -log(s0(u))
-    s <- function(b, u) s0(u)^b
-    h <- function(b, u) b * f0(u) / s0(u)
-    H <- function(b, u) -b * log(s0(u))
+    list(
+      s0 = function(u) 1 - stats::pgamma(u, shape, scale0),
+      f0 = function(u) stats::dgamma(u, shape, scale0),
+      h0 = function(u) {
+        f <- stats::dgamma(u, shape, scale0)
+        s <- 1 - stats::pgamma(u, shape, scale0)
+        f / s
+      },
+      H0 = function(u) -log(1 - stats::pgamma(u, shape, scale0)),
+      s = function(b, u) (1 - stats::pgamma(u, shape, scale0))^b,
+      h = function(b, u) {
+        f <- stats::dgamma(u, shape, scale0)
+        s <- 1 - stats::pgamma(u, shape, scale0)
+        b * f / s
+      },
+      H = function(b, u) -b * log(1 - stats::pgamma(u, shape, scale0))
+    )
     
   } else if (dist == "SP") {
     # Logspline distribution
@@ -600,22 +624,82 @@ two_stage_single_arm_tte <- function(shape = NULL, S0 = NULL, x0 = NULL, hr, tf,
     fitSP <- logspline::oldlogspline(time[status == 1], time[status == 0], 
                                      lbound = 0)
     
-    s0 <- function(u) 1 - logspline::poldlogspline(u, fitSP)
-    f0 <- function(u) logspline::doldlogspline(u, fitSP)
-    h0 <- function(u) f0(u) / s0(u)
-    H0 <- function(u) -log(s0(u))
-    s <- function(b, u) s0(u)^b
-    h <- function(b, u) b * f0(u) / s0(u)
-    H <- function(b, u) -b * log(s0(u))
+    list(
+      s0 = function(u) 1 - logspline::poldlogspline(u, fitSP),
+      f0 = function(u) logspline::doldlogspline(u, fitSP),
+      h0 = function(u) {
+        f <- logspline::doldlogspline(u, fitSP)
+        s <- 1 - logspline::poldlogspline(u, fitSP)
+        f / s
+      },
+      H0 = function(u) -log(1 - logspline::poldlogspline(u, fitSP)),
+      s = function(b, u) (1 - logspline::poldlogspline(u, fitSP))^b,
+      h = function(b, u) {
+        f <- logspline::doldlogspline(u, fitSP)
+        s <- 1 - logspline::poldlogspline(u, fitSP)
+        b * f / s
+      },
+      H = function(b, u) -b * log(1 - logspline::poldlogspline(u, fitSP))
+    )
   }
-  
-  list(
-    s0 = s0,
-    f0 = f0,
-    h0 = h0,
-    H0 = H0,
-    s = s,
-    h = h,
-    H = H
-  )
+}
+
+
+#' Calculate Type I Error for Two-Stage Design
+#'
+#' @description
+#' Internal helper function to calculate the Type I error probability for a 
+#' two-stage design given critical values and correlation.
+#'
+#' @param c2 Numeric. Final stage critical value.
+#' @param c1 Numeric. Stage 1 critical value.
+#' @param rho0 Numeric. Correlation between stage 1 and final test statistics 
+#'   under H0.
+#'
+#' @return Numeric. Type I error probability.
+#'
+#' @details
+#' Computes P(Z1 > c1 and Z2 > c2 | H0) where (Z1, Z2) are bivariate normal
+#' with correlation rho0. Uses numerical integration of the bivariate normal
+#' density.
+#'
+#' @keywords internal
+#' @noRd
+.calculate_alpha <- function(c2, c1, rho0) {
+  fun1 <- function(z, c1, rho0) {
+    stats::dnorm(z) * stats::pnorm((rho0 * z - c1) / sqrt(1 - rho0^2))
+  }
+  alpha_val <- stats::integrate(fun1, lower = c2, upper = Inf, c1, rho0)$value
+  return(alpha_val)
+}
+
+
+#' Calculate Power for Two-Stage Design
+#'
+#' @description
+#' Internal helper function to calculate the power for a two-stage design 
+#' given standardized critical values and correlation.
+#'
+#' @param cb Numeric. Standardized final stage critical value under H1.
+#' @param cb1 Numeric. Standardized stage 1 critical value under H1.
+#' @param rho1 Numeric. Correlation between stage 1 and final test statistics 
+#'   under H1.
+#'
+#' @return Numeric. Power (probability of rejecting H0 when H1 is true).
+#'
+#' @details
+#' Computes P(Z1 > cb1 and Z2 > cb | H1) where (Z1, Z2) are bivariate normal
+#' with correlation rho1. The critical values cb and cb1 have been standardized
+#' to account for the effect size under H1. Uses numerical integration of the 
+#' bivariate normal density.
+#'
+#' @keywords internal
+#' @noRd
+.calculate_power <- function(cb, cb1, rho1) {
+  fun2 <- function(z, cb1, rho1) {
+    stats::dnorm(z) * stats::pnorm((rho1 * z - cb1) / sqrt(1 - rho1^2))
+  }
+  pwr <- stats::integrate(fun2, lower = cb, upper = Inf, cb1 = cb1, 
+                         rho1 = rho1)$value
+  return(pwr)
 }

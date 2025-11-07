@@ -26,20 +26,34 @@ reference:
       - print.two_stage_design
       - summary.two_stage_design
       - print.summary.two_stage_design
+  - title: "Single-Stage Designs"
+    desc: "Functions for calculating single-stage single-arm trial designs with time-to-event endpoints"
+    contents:
+      - single_stage_single_arm_tte
   - title: Simulation Functions
     desc: Functions for simulating trials and validating operating characteristics
     contents:
     - simulate_trial
     - simulate_operating_characteristics
+  - title: Statistical Functions
+    desc: Statistical test functions
+    contents:
+    - logrank_stat_wu
 
 articles:
-  - title: "Getting Started"
+  - title: "Two-Stage Designs"
+    desc: "Two-stage design workflow and examples"
     contents:
       - two-stage-tte
+  - title: "Single-Stage Designs"
+    desc: "Single-stage design workflow with simulations"
+    contents:
+      - articles/single-stage-simulations
   - title: "Validation"
     desc: "Comparison with published methodology"
     contents:
       - articles/wu-validation
+      - articles/single-stage-validation
 
 navbar:
   structure:

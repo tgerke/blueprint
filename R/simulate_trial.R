@@ -2,60 +2,86 @@
 #'
 #' @description
 #' Simulates a single realization of a trial based on a design object created by
-#' `two_stage_single_arm_tte()` or other design functions in this package.
+#' `two_stage_single_arm_tte()`, `single_stage_single_arm_tte()`, or other design 
+#' functions in this package.
 #' 
 #' This is a generic function that will work with any trial design created by
-#' blueprint package functions.
+#' blueprint package functions. It automatically detects whether the design is
+#' single-stage or two-stage based on the class attribute.
 #'
-#' @param design A design object (e.g., from `two_stage_single_arm_tte()`)
+#' @param design A design object (e.g., from `two_stage_single_arm_tte()` or 
+#'   `single_stage_single_arm_tte()`)
 #' @param shape Shape parameter for the survival distribution under simulation
 #' @param scale Scale parameter for the survival distribution under simulation
 #'
 #' @return A list containing:
 #'   \item{reject_h0}{Logical; TRUE if null hypothesis is rejected}
-#'   \item{stopped_early}{Logical; TRUE if trial stopped at interim}
+#'   \item{stopped_early}{Logical; TRUE if trial stopped at interim (two-stage only; FALSE for single-stage)}
 #'   \item{enrolled_n}{Number of patients enrolled}
-#'   \item{interim_data}{Data frame of patient data at interim analysis}
-#'   \item{final_data}{Data frame of patient data at final analysis (if applicable)}
-#'   \item{interim_stat}{Test statistic value at interim}
-#'   \item{final_stat}{Test statistic value at final (if applicable)}
-#'   \item{interim_time}{Calendar time of interim analysis}
-#'   \item{final_time}{Calendar time of final analysis (if applicable)}
-#'   \item{interim_events}{Number of events observed at interim}
-#'   \item{final_events}{Number of events observed at final (if applicable)}
+#'   \item{interim_data}{Data frame of patient data at interim analysis (two-stage only; NULL for single-stage)}
+#'   \item{final_data}{Data frame of patient data at final analysis}
+#'   \item{interim_stat}{Test statistic value at interim (two-stage only; NA for single-stage)}
+#'   \item{final_stat}{Test statistic value at final}
+#'   \item{interim_time}{Calendar time of interim analysis (two-stage only; NA for single-stage)}
+#'   \item{final_time}{Calendar time of final analysis}
+#'   \item{interim_events}{Number of events observed at interim (two-stage only; NA for single-stage)}
+#'   \item{final_events}{Number of events observed at final}
 #'
 #' @examples
 #' \dontrun{
-#' # Create a design
-#' design <- two_stage_single_arm_tte(
+#' # Two-stage design
+#' design_two <- two_stage_single_arm_tte(
 #'   shape = 1.47327, S0 = 0.5, x0 = 3.5, hr = 0.5913,
 #'   tf = 5, rate = 2, alpha = 0.05, beta = 0.2,
 #'   dist = "WB", restricted = FALSE
 #' )
 #' 
 #' # Simulate one trial under H0
-#' # (Calculate scale_h0 from design parameters)
 #' scale_h0 <- 3.5 / (-log(0.5))^(1/1.47327)
-#' trial_result <- simulate_trial(design, shape = 1.47327, scale = scale_h0)
+#' trial_result <- simulate_trial(design_two, shape = 1.47327, scale = scale_h0)
 #' 
-#' # Simulate one trial under H1  
-#' scale_h1 <- scale_h0 / (0.5913^(1/1.47327))
-#' trial_result <- simulate_trial(design, shape = 1.47327, scale = scale_h1)
+#' # Single-stage design
+#' design_single <- single_stage_single_arm_tte(
+#'   shape = 1.0, S0 = 0.5, x0 = 0.5, hr = 0.667,
+#'   tf = 1.0, rate = 32.4, alpha = 0.05, beta = 0.10,
+#'   two_sided = TRUE, dist = "WB", restricted = FALSE
+#' )
+#' 
+#' # Simulate one trial under H1
+#' scale_h0 <- 0.5 / (-log(0.5))^(1/1.0)
+#' scale_h1 <- scale_h0 / (0.667^(1/1.0))
+#' trial_result <- simulate_trial(design_single, shape = 1.0, scale = scale_h1)
 #' }
 #'
 #' @export
 simulate_trial <- function(design, shape, scale) {
   
   # Extract parameters from design object
-  if (!inherits(design, "list") || is.null(design$Two_stage) || is.null(design$param)) {
+  # Check for valid design object (either two_stage_design or single_stage_design)
+  is_valid <- inherits(design, c("two_stage_design", "single_stage_design")) || 
+              (inherits(design, "list") && !is.null(design$param))
+  
+  if (!is_valid) {
     stop("design must be a valid design object from blueprint package")
   }
   
-  n <- design$Two_stage$n
-  n1 <- design$Two_stage$n1
-  t1 <- design$Two_stage$t1  # Interim analysis time (calendar time from study start)
-  c1 <- design$Two_stage$c1  # Interim critical value
-  c <- design$Two_stage$c     # Final critical value
+  # Check if this is a single-stage design
+  is_single_stage <- inherits(design, "single_stage_design")
+  
+  if (is_single_stage) {
+    return(.simulate_single_stage_trial(design, shape, scale))
+  }
+  
+  # Two-stage design
+  if (is.null(design$two_stage)) {
+    stop("Two-stage design object must have a 'two_stage' component")
+  }
+  
+  n <- design$two_stage$n
+  n1 <- design$two_stage$n1
+  t1 <- design$two_stage$t1  # Interim analysis time (calendar time from study start)
+  c1 <- design$two_stage$c1  # Interim critical value
+  c <- design$two_stage$c     # Final critical value
   
   # Extract from param
   tf <- design$param$tf
@@ -266,4 +292,125 @@ simulate_trial <- function(design, shape, scale) {
     stop("Unsupported distribution for H0 calculation")
   }
   return(scale)
+}
+
+
+#' Simulate Single-Stage Trial
+#'
+#' @description
+#' Internal helper function to simulate a single-stage trial.
+#'
+#' @keywords internal
+#' @noRd
+.simulate_single_stage_trial <- function(design, shape, scale) {
+  
+  # Extract parameters from single-stage design
+  n <- design$single_stage$n
+  ta <- design$single_stage$ta
+  c <- design$single_stage$c  # Critical value
+  
+  # Extract from param
+  tf <- design$param$tf
+  rate <- design$param$rate
+  restricted <- design$param$restricted
+  two_sided <- design$param$two_sided
+  
+  # Determine distribution
+  dist <- if ("dist" %in% names(design$param)) design$param$dist else "WB"
+  
+  # Extract H0 parameters for log-rank test
+  S0 <- design$param$S0
+  x0 <- design$param$x0
+  shape_h0 <- design$param$shape
+  
+  # Calculate H0 scale parameter
+  if (!is.null(S0) && !is.null(x0) && !is.null(shape_h0)) {
+    scale_h0 <- .calculate_h0_scale(dist, S0, x0, shape_h0)
+  } else {
+    scale_h0 <- NULL
+  }
+  
+  # Generate accrual times for all n patients
+  accrual_period <- n / rate
+  accrual_times <- sort(runif(n, 0, accrual_period))
+  
+  # Generate event times based on distribution
+  event_times <- switch(dist,
+    "WB" = rweibull(n, shape = shape, scale = scale),
+    "LN" = rlnorm(n, meanlog = log(scale), sdlog = shape),
+    "GM" = rgamma(n, shape = shape, scale = scale),
+    "LG" = {
+      # Log-logistic: use inverse CDF method
+      u <- runif(n)
+      scale * ((u / (1 - u))^(1/shape))
+    },
+    stop("Unsupported distribution. Use 'WB', 'LN', 'GM', or 'LG'.")
+  )
+  
+  # === FINAL ANALYSIS (Single-stage) ===
+  # Time of final analysis
+  if (restricted) {
+    # Restricted: everyone followed for exactly tf
+    t_final <- max(accrual_times) + tf
+  } else {
+    # Unrestricted: last patient gets tf follow-up
+    t_final <- max(accrual_times) + tf
+  }
+  
+  # Calculate observed times and event indicators at final
+  final_obs_time <- pmin(event_times, t_final - accrual_times)
+  final_event_ind <- event_times <= (t_final - accrual_times)
+  
+  final_data <- data.frame(
+    patient_id = 1:n,
+    accrual_time = accrual_times,
+    event_time = event_times,
+    obs_time = final_obs_time,
+    event = final_event_ind
+  )
+  
+  # Calculate one-sample log-rank statistic at final
+  if (!is.null(scale_h0)) {
+    final_stat <- logrank_stat_wu(
+      obs_times = final_obs_time,
+      event_ind = final_event_ind,
+      dist = dist,
+      shape_h0 = shape_h0,
+      scale_h0 = scale_h0
+    )
+  } else {
+    # Fallback to simple standardized count
+    O_final <- sum(final_event_ind)
+    E_final <- n * mean(final_event_ind)
+    V_final <- n * var(final_event_ind)
+    
+    if (V_final == 0 || is.na(V_final)) {
+      final_stat <- O_final - E_final
+    } else {
+      final_stat <- (O_final - E_final) / sqrt(V_final)
+    }
+  }
+  
+  # Decision at final
+  # For two-sided test: reject if |Z| > c (i.e., Z > c OR Z < -c)
+  # For one-sided test: reject if Z > c
+  if (two_sided) {
+    reject <- !is.na(final_stat) && abs(final_stat) > c
+  } else {
+    reject <- !is.na(final_stat) && final_stat > c
+  }
+  
+  return(list(
+    reject_h0 = reject,
+    stopped_early = FALSE,  # Single-stage doesn't have interim
+    enrolled_n = n,
+    interim_data = NULL,  # No interim for single-stage
+    final_data = final_data,
+    interim_stat = NA,  # No interim for single-stage
+    final_stat = final_stat,
+    interim_time = NA,  # No interim for single-stage
+    final_time = t_final,
+    interim_events = NA,  # No interim for single-stage
+    final_events = sum(final_event_ind)
+  ))
 }

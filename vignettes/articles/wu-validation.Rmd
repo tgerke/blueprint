@@ -71,19 +71,19 @@ design <- two_stage_single_arm_tte(
 
 # Display two-stage design
 cat("Two-stage Design:\n")
-print(design$Two_stage)
+print(design$two_stage)
 
 # Display single-stage design
 cat("\nSingle-stage Design:\n")
-print(design$Single_stage)
+print(design$single_stage)
 ```
 
 ### Results Summary
 
 The design optimization produces:
 
-- **Two-stage design**: n = `r design$Two_stage$n`, n₁ = `r design$Two_stage$n1`, c₁ = `r round(design$Two_stage$c1, 2)`, c = `r round(design$Two_stage$c, 2)`
-- **Single-stage design**: n = `r design$Single_stage$nsingle`, ta = `r design$Single_stage$tasingle`
+- **Two-stage design**: n = `r design$two_stage$n`, n₁ = `r design$two_stage$n1`, c₁ = `r round(design$two_stage$c1, 2)`, c = `r round(design$two_stage$c, 2)`
+- **Single-stage design**: n = `r design$single_stage$nsingle`, ta = `r design$single_stage$tasingle`
 
 These results match the `OneArm2stage` reference implementation exactly (see comparison below).
 
@@ -132,14 +132,14 @@ count_events_at_time <- function(sim_results, time_point, scenario = "h0") {
 }
 
 # Expected events at interim (t1)
-events_at_interim_h0 <- count_events_at_time(sim_results, design$Two_stage$t1, "h0")
+events_at_interim_h0 <- count_events_at_time(sim_results, design$two_stage$t1, "h0")
 expected_events_interim_h0 <- mean(events_at_interim_h0)
 
-events_at_interim_h1 <- count_events_at_time(sim_results, design$Two_stage$t1, "h1")
+events_at_interim_h1 <- count_events_at_time(sim_results, design$two_stage$t1, "h1")
 expected_events_interim_h1 <- mean(events_at_interim_h1)
 
 # Expected events at final analysis (MTSL = max trial study length)
-final_time <- design$Two_stage$MTSL
+final_time <- design$two_stage$MTSL
 events_at_final_h0 <- count_events_at_time(sim_results, final_time, "h0")
 expected_events_final_h0 <- mean(events_at_final_h0)
 
@@ -165,11 +165,11 @@ sim_table <- data.frame(
   Target = c(
     "≤ 0.05",
     "≥ 0.80",
-    sprintf("%.2f", design$Two_stage$ES),
+    sprintf("%.2f", design$two_stage$ES),
     "—",
-    sprintf("%.4f", design$Two_stage$PS),
+    sprintf("%.4f", design$two_stage$PS),
     "—",
-    sprintf("%.2f", design$Two_stage$t1),
+    sprintf("%.2f", design$two_stage$t1),
     "—",
     "—",
     "—",
@@ -193,11 +193,11 @@ sim_table <- data.frame(
   Status = c(
     ifelse(sim_results$type1_error <= 0.05, "✓", "✗"),
     ifelse(sim_results$power >= 0.80, "✓", "✗"),
-    ifelse(abs(sim_results$expected_n_h0 - design$Two_stage$ES) < 2, "✓", "—"),
+    ifelse(abs(sim_results$expected_n_h0 - design$two_stage$ES) < 2, "✓", "—"),
     "—",
-    ifelse(abs(sim_results$prob_early_stop_h0 - design$Two_stage$PS) < 0.05, "✓", "—"),
+    ifelse(abs(sim_results$prob_early_stop_h0 - design$two_stage$PS) < 0.05, "✓", "—"),
     "—",
-    ifelse(abs(sim_results$avg_interim_time_h0 - design$Two_stage$t1) < 0.5, "✓", "—"),
+    ifelse(abs(sim_results$avg_interim_time_h0 - design$two_stage$t1) < 0.5, "✓", "—"),
     "—",
     "—",
     "—",
@@ -212,9 +212,9 @@ knitr::kable(sim_table, align = c("l", "r", "r", "c"),
 
 **Why Expected Events Matter:**
 
-The table above shows expected events at both the interim analysis (time `t1` = `r sprintf("%.2f", design$Two_stage$t1)` months) and final analysis (time = `r sprintf("%.2f", design$Two_stage$MTSL)` months). This information is critical because:
+The table above shows expected events at both the interim analysis (time `t1` = `r sprintf("%.2f", design$two_stage$t1)` months) and final analysis (time = `r sprintf("%.2f", design$two_stage$MTSL)` months). This information is critical because:
 
-1. **Feasibility Assessment**: Under H₀, we expect only `r sprintf("%.1f", expected_events_interim_h0)` events at interim among n₁ = `r design$Two_stage$n1` patients. This helps assess whether the log-rank test will have adequate information for decision-making.
+1. **Feasibility Assessment**: Under H₀, we expect only `r sprintf("%.1f", expected_events_interim_h0)` events at interim among n₁ = `r design$two_stage$n1` patients. This helps assess whether the log-rank test will have adequate information for decision-making.
 
 2. **Interim vs Final Information**: At interim, we expect `r sprintf("%.1f", expected_events_interim_h0)` events (H₀) vs `r sprintf("%.1f", expected_events_interim_h1)` events (H₁). By the final analysis, this grows to `r sprintf("%.1f", expected_events_final_h0)` vs `r sprintf("%.1f", expected_events_final_h1)` events, showing the information accrual over time.
 
@@ -226,9 +226,9 @@ The table above shows expected events at both the interim analysis (time `t1` = 
 
 - ✓ **Type I Error**: `r sprintf("%.4f", sim_results$type1_error)` is ≤ 0.05, confirming proper false positive control
 - ✓ **Power**: `r sprintf("%.4f", sim_results$power)` is ≥ 0.80, confirming adequate power to detect the alternative
-- ✓ **Expected N under H₀**: Simulation (`r sprintf("%.2f", sim_results$expected_n_h0)`) closely matches theoretical ES (`r sprintf("%.2f", design$Two_stage$ES)`)
-- ✓ **P(Early Stop | H₀)**: Simulation (`r sprintf("%.4f", sim_results$prob_early_stop_h0)`) closely matches theoretical PS (`r sprintf("%.4f", design$Two_stage$PS)`)
-- ✓ **Timing**: Average interim analysis occurs at `r sprintf("%.2f", sim_results$avg_interim_time_h0)` months (design: `r sprintf("%.2f", design$Two_stage$t1)`)
+- ✓ **Expected N under H₀**: Simulation (`r sprintf("%.2f", sim_results$expected_n_h0)`) closely matches theoretical ES (`r sprintf("%.2f", design$two_stage$ES)`)
+- ✓ **P(Early Stop | H₀)**: Simulation (`r sprintf("%.4f", sim_results$prob_early_stop_h0)`) closely matches theoretical PS (`r sprintf("%.4f", design$two_stage$PS)`)
+- ✓ **Timing**: Average interim analysis occurs at `r sprintf("%.2f", sim_results$avg_interim_time_h0)` months (design: `r sprintf("%.2f", design$two_stage$t1)`)
 
 The simulation validates that the design meets all target operating characteristics.
 
@@ -267,13 +267,13 @@ cat("Two-stage Design Parameters:\n")
 comparison_design <- data.frame(
   Parameter = c("n (total)", "n1 (stage 1)", "c1 (interim)", "c (final)", "t1 (interim time)", "ES (expected N | H0)", "PS (P(early stop | H0))"),
   blueprint = c(
-    design$Two_stage$n,
-    design$Two_stage$n1,
-    round(design$Two_stage$c1, 4),
-    round(design$Two_stage$c, 4),
-    round(design$Two_stage$t1, 4),
-    round(design$Two_stage$ES, 2),
-    round(design$Two_stage$PS, 4)
+    design$two_stage$n,
+    design$two_stage$n1,
+    round(design$two_stage$c1, 4),
+    round(design$two_stage$c, 4),
+    round(design$two_stage$t1, 4),
+    round(design$two_stage$ES, 2),
+    round(design$two_stage$PS, 4)
   ),
   OneArm2stage = c(
     wu_optimal$n,
@@ -285,20 +285,24 @@ comparison_design <- data.frame(
     round(wu_optimal$PS, 4)
   ),
   Match = c(
-    design$Two_stage$n == wu_optimal$n,
-    design$Two_stage$n1 == wu_optimal$n1,
-    abs(design$Two_stage$c1 - wu_optimal$c1) < 0.01,
-    abs(design$Two_stage$c - wu_optimal$c) < 0.01,
-    abs(design$Two_stage$t1 - wu_optimal$t1) < 0.1,
-    abs(design$Two_stage$ES - wu_optimal$ES) < 1,
-    abs(design$Two_stage$PS - wu_optimal$PS) < 0.01
+    design$two_stage$n == wu_optimal$n,
+    design$two_stage$n1 == wu_optimal$n1,
+    abs(design$two_stage$c1 - wu_optimal$c1) < 0.01,
+    abs(design$two_stage$c - wu_optimal$c) < 0.01,
+    abs(design$two_stage$t1 - wu_optimal$t1) < 0.1,
+    abs(design$two_stage$ES - wu_optimal$ES) < 1,
+    abs(design$two_stage$PS - wu_optimal$PS) < 0.01
   )
 )
 print(comparison_design, row.names = FALSE)
 
 cat("\nSingle-stage Design:\n")
-cat("  blueprint:    n =", design$Single_stage$nsingle, ", ta =", design$Single_stage$tasingle, "\n")
-cat("  OneArm2stage: n =", design_wu$Single_stage$n, ", ta =", design_wu$Single_stage$ta, "\n")
+cat("  blueprint:    n =", design$single_stage$nsingle, ", ta =", design$single_stage$tasingle, "\n")
+if (!is.null(design_wu$Single_stage)) {
+  cat("  OneArm2stage: n =", design_wu$Single_stage$n, ", ta =", design_wu$Single_stage$ta, "\n")
+} else {
+  cat("  OneArm2stage: (structure differs)\n")
+}
 ```
 
 **Result**: The `blueprint` package produces **identical** designs to the `OneArm2stage` reference implementation.
@@ -334,10 +338,10 @@ design2 <- two_stage_single_arm_tte(
 )
 
 cat("Two-stage Design:\n")
-print(design2$Two_stage)
+print(design2$two_stage)
 
 cat("\nSingle-stage Design:\n")
-print(design2$Single_stage)
+print(design2$single_stage)
 ```
 
 ### Comparison with OneArm2stage
@@ -363,11 +367,11 @@ cat("=====================================\n\n")
 comparison2 <- data.frame(
   Parameter = c("n", "n1", "c1", "c", "ES"),
   blueprint = c(
-    design2$Two_stage$n,
-    design2$Two_stage$n1,
-    round(design2$Two_stage$c1, 4),
-    round(design2$Two_stage$c, 4),
-    round(design2$Two_stage$ES, 2)
+    design2$two_stage$n,
+    design2$two_stage$n1,
+    round(design2$two_stage$c1, 4),
+    round(design2$two_stage$c, 4),
+    round(design2$two_stage$ES, 2)
   ),
   OneArm2stage = c(
     wu_optimal2$n,
@@ -377,11 +381,11 @@ comparison2 <- data.frame(
     round(wu_optimal2$ES, 2)
   ),
   Match = c(
-    design2$Two_stage$n == wu_optimal2$n,
-    design2$Two_stage$n1 == wu_optimal2$n1,
-    abs(design2$Two_stage$c1 - wu_optimal2$c1) < 0.01,
-    abs(design2$Two_stage$c - wu_optimal2$c) < 0.01,
-    abs(design2$Two_stage$ES - wu_optimal2$ES) < 1
+    design2$two_stage$n == wu_optimal2$n,
+    design2$two_stage$n1 == wu_optimal2$n1,
+    abs(design2$two_stage$c1 - wu_optimal2$c1) < 0.01,
+    abs(design2$two_stage$c - wu_optimal2$c) < 0.01,
+    abs(design2$two_stage$ES - wu_optimal2$ES) < 1
   )
 )
 knitr::kable(comparison2, align = c("l", "r", "r", "c"),
@@ -419,8 +423,8 @@ sim_table2 <- data.frame(
   Target = c(
     "≤ 0.05",
     "≥ 0.80",
-    sprintf("%.2f", design2$Two_stage$ES),
-    sprintf("%.4f", design2$Two_stage$PS)
+    sprintf("%.2f", design2$two_stage$ES),
+    sprintf("%.4f", design2$two_stage$PS)
   ),
   Simulated = c(
     sprintf("%.4f", sim_results2$type1_error),
@@ -431,8 +435,8 @@ sim_table2 <- data.frame(
   Status = c(
     ifelse(sim_results2$type1_error <= 0.05, "✓", "✗"),
     ifelse(sim_results2$power >= 0.80, "✓", "✗"),
-    ifelse(abs(sim_results2$expected_n_h0 - design2$Two_stage$ES) < 2, "✓", "—"),
-    ifelse(abs(sim_results2$prob_early_stop_h0 - design2$Two_stage$PS) < 0.05, "✓", "—")
+    ifelse(abs(sim_results2$expected_n_h0 - design2$two_stage$ES) < 2, "✓", "—"),
+    ifelse(abs(sim_results2$prob_early_stop_h0 - design2$two_stage$PS) < 0.05, "✓", "—")
   )
 )
 
@@ -582,7 +586,7 @@ power_wu_sclc <- mean(sim_h1_wu_sclc)
 
 comparison_sclc <- data.frame(
   Metric = c("Type I Error (α)", "Power (1-β)", "Expected N | H₀", "P(Early Stop | H₀)"),
-  Target = c("≤ 0.05", "≥ 0.80", sprintf("%.2f", design$Two_stage$ES), sprintf("%.4f", design$Two_stage$PS)),
+  Target = c("≤ 0.05", "≥ 0.80", sprintf("%.2f", design$two_stage$ES), sprintf("%.4f", design$two_stage$PS)),
   blueprint = c(
     sprintf("%.4f", sim_blueprint_sclc$type1_error),
     sprintf("%.4f", sim_blueprint_sclc$power),
@@ -658,7 +662,7 @@ power_wu_exp <- mean(sim_h1_wu_exp)
 
 comparison_exp <- data.frame(
   Metric = c("Type I Error (α)", "Power (1-β)", "Expected N | H₀", "P(Early Stop | H₀)"),
-  Target = c("≤ 0.05", "≥ 0.80", sprintf("%.2f", design2$Two_stage$ES), sprintf("%.4f", design2$Two_stage$PS)),
+  Target = c("≤ 0.05", "≥ 0.80", sprintf("%.2f", design2$two_stage$ES), sprintf("%.4f", design2$two_stage$PS)),
   blueprint = c(
     sprintf("%.4f", sim_blueprint_exp$type1_error),
     sprintf("%.4f", sim_blueprint_exp$power),

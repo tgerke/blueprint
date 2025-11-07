@@ -14,22 +14,22 @@ print.two_stage_design <- function(x, ...) {
   cat("\n")
   
   cat("Single-Stage Design:\n")
-  cat(sprintf("  Sample size: %d\n", x$Single_stage$nsingle))
-  cat(sprintf("  Accrual time: %.2f\n", x$Single_stage$tasingle))
-  cat(sprintf("  Critical value: %.4f\n", x$Single_stage$csingle))
+  cat(sprintf("  Sample size: %d\n", x$single_stage$nsingle))
+  cat(sprintf("  Accrual time: %.2f\n", x$single_stage$tasingle))
+  cat(sprintf("  Critical value: %.4f\n", x$single_stage$csingle))
   cat("\n")
   
   cat("Two-Stage Design:\n")
-  cat(sprintf("  Stage 1 sample size: %d\n", x$Two_stage$n1))
+  cat(sprintf("  Stage 1 sample size: %d\n", x$two_stage$n1))
   cat(sprintf("  Stage 1 critical value: %.4f (stop if Z1 <= %.4f)\n", 
-              x$Two_stage$c1, x$Two_stage$c1))
-  cat(sprintf("  Total sample size: %d\n", x$Two_stage$n))
+              x$two_stage$c1, x$two_stage$c1))
+  cat(sprintf("  Total sample size: %d\n", x$two_stage$n))
   cat(sprintf("  Final critical value: %.4f (reject H0 if Z > %.4f)\n", 
-              x$Two_stage$c, x$Two_stage$c))
-  cat(sprintf("  Interim analysis time: %.2f\n", x$Two_stage$t1))
-  cat(sprintf("  Maximum total study length: %.2f\n", x$Two_stage$MTSL))
-  cat(sprintf("  Expected sample size under H0: %.2f\n", x$Two_stage$ES))
-  cat(sprintf("  Probability of early stopping under H0: %.4f\n", x$Two_stage$PS))
+              x$two_stage$c, x$two_stage$c))
+  cat(sprintf("  Interim analysis time: %.2f\n", x$two_stage$t1))
+  cat(sprintf("  Maximum total study length: %.2f\n", x$two_stage$MTSL))
+  cat(sprintf("  Expected sample size under H0: %.2f\n", x$two_stage$ES))
+  cat(sprintf("  Probability of early stopping under H0: %.4f\n", x$two_stage$PS))
   
   invisible(x)
 }
@@ -46,9 +46,9 @@ summary.two_stage_design <- function(object, ...) {
   structure(
     list(
       param = object$param,
-      single_stage = object$Single_stage,
-      two_stage = object$Two_stage,
-      efficiency = object$Two_stage$ES / object$Single_stage$nsingle
+      single_stage = object$single_stage,
+      two_stage = object$two_stage,
+      efficiency = object$two_stage$ES / object$single_stage$nsingle
     ),
     class = "summary.two_stage_design"
   )

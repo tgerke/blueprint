@@ -34,14 +34,14 @@ test_that("Wu et al. (2020) SCLC example matches OneArm2stage", {
   
   # Expected results from OneArm2stage::phase2.TTE
   # Two_stage_Optimal: n1=22, c1=-0.3381, n=30, c=1.6391, ES=26.80
-  expect_equal(design$Two_stage$n, 30)
-  expect_equal(design$Two_stage$n1, 22)
-  expect_equal(design$Two_stage$c1, -0.3381, tolerance = 0.01)
-  expect_equal(design$Two_stage$c, 1.6391, tolerance = 0.01)
-  expect_equal(design$Two_stage$ES, 26.80, tolerance = 0.5)
+  expect_equal(design$two_stage$n, 30)
+  expect_equal(design$two_stage$n1, 22)
+  expect_equal(design$two_stage$c1, -0.3381, tolerance = 0.01)
+  expect_equal(design$two_stage$c, 1.6391, tolerance = 0.01)
+  expect_equal(design$two_stage$ES, 26.80, tolerance = 0.5)
   
   # Single-stage should be close to OneArm2stage result (n=29)
-  expect_equal(design$Single_stage$nsingle, 29, tolerance = 1)
+  expect_equal(design$single_stage$nsingle, 29, tolerance = 1)
 })
 
 test_that("Exponential example (vignette) matches OneArm2stage", {
@@ -62,16 +62,16 @@ test_that("Exponential example (vignette) matches OneArm2stage", {
   
   # Expected results from OneArm2stage::phase2.TTE
   # Two_stage_Optimal: n1=22, c1=-0.7237, n=46, c=1.5952, ES=40.17
-  expect_equal(design$Two_stage$n, 46)
-  expect_equal(design$Two_stage$n1, 22)
-  expect_equal(design$Two_stage$c1, -0.7237, tolerance = 0.01)
-  expect_equal(design$Two_stage$c, 1.5952, tolerance = 0.01)
-  expect_equal(design$Two_stage$ES, 40.17, tolerance = 0.5)
-  expect_equal(design$Two_stage$PS, 0.2346, tolerance = 0.01)
+  expect_equal(design$two_stage$n, 46)
+  expect_equal(design$two_stage$n1, 22)
+  expect_equal(design$two_stage$c1, -0.7237, tolerance = 0.01)
+  expect_equal(design$two_stage$c, 1.5952, tolerance = 0.01)
+  expect_equal(design$two_stage$ES, 40.17, tolerance = 0.5)
+  expect_equal(design$two_stage$PS, 0.2346, tolerance = 0.01)
   
   # Single-stage should be close to OneArm2stage result (n=45)
-  expect_equal(design$Single_stage$nsingle, 44, tolerance = 1)
-  expect_equal(design$Single_stage$tasingle, 3, tolerance = 0.5)
+  expect_equal(design$single_stage$nsingle, 44, tolerance = 1)
+  expect_equal(design$single_stage$tasingle, 3, tolerance = 0.5)
 })
 
 test_that("Operating characteristics match theoretical values", {
@@ -112,7 +112,7 @@ test_that("Operating characteristics match theoretical values", {
   expect_true(sim_results$power >= 0.65)  # Generous tolerance for 100 sims
   
   # Expected N under H0 should be less than single-stage
-  expect_true(sim_results$expected_n_h0 < design$Single_stage$nsingle)
+  expect_true(sim_results$expected_n_h0 < design$single_stage$nsingle)
   
   # Probability of early stopping should be between 0 and 1
   expect_true(sim_results$prob_early_stop_h0 >= 0 && sim_results$prob_early_stop_h0 <= 1)
@@ -135,7 +135,7 @@ test_that("two_stage_single_arm_tte works with Weibull distribution", {
   )
   
   expect_type(design, "list")
-  expect_named(design, c("param", "Single_stage", "Two_stage"))
+  expect_named(design, c("param", "single_stage", "two_stage"))
   
   # Check param structure
   expect_s3_class(design$param, "data.frame")
@@ -149,26 +149,26 @@ test_that("two_stage_single_arm_tte works with Weibull distribution", {
   expect_equal(design$param$tf, 5)
   
   # Check Single_stage structure
-  expect_s3_class(design$Single_stage, "data.frame")
-  expect_named(design$Single_stage, c("nsingle", "tasingle", "csingle"))
-  expect_true(design$Single_stage$nsingle > 0)
-  expect_true(design$Single_stage$tasingle > 0)
-  expect_true(abs(design$Single_stage$csingle - qnorm(0.95)) < 0.01)
+  expect_s3_class(design$single_stage, "data.frame")
+  expect_named(design$single_stage, c("nsingle", "tasingle", "csingle"))
+  expect_true(design$single_stage$nsingle > 0)
+  expect_true(design$single_stage$tasingle > 0)
+  expect_true(abs(design$single_stage$csingle - qnorm(0.95)) < 0.01)
   
   # Check Two_stage structure
-  expect_s3_class(design$Two_stage, "data.frame")
-  expect_named(design$Two_stage, c("n1", "c1", "n", "c", "t1", "MTSL", "ES", "PS"))
-  expect_true(design$Two_stage$n1 > 0)
-  expect_true(design$Two_stage$n > design$Two_stage$n1)
-  expect_true(design$Two_stage$t1 > 0)
-  expect_true(design$Two_stage$MTSL > 0)
-  expect_true(design$Two_stage$ES >= design$Two_stage$n1)
-  expect_true(design$Two_stage$PS >= 0 && design$Two_stage$PS <= 1)
+  expect_s3_class(design$two_stage, "data.frame")
+  expect_named(design$two_stage, c("n1", "c1", "n", "c", "t1", "MTSL", "ES", "PS"))
+  expect_true(design$two_stage$n1 > 0)
+  expect_true(design$two_stage$n > design$two_stage$n1)
+  expect_true(design$two_stage$t1 > 0)
+  expect_true(design$two_stage$MTSL > 0)
+  expect_true(design$two_stage$ES >= design$two_stage$n1)
+  expect_true(design$two_stage$PS >= 0 && design$two_stage$PS <= 1)
   
   # Check that design is reasonable
-  expect_true(design$Two_stage$n1 >= 5)
-  expect_true(design$Two_stage$n <= 100)
-  expect_true(design$Two_stage$ES < design$Single_stage$nsingle)
+  expect_true(design$two_stage$n1 >= 5)
+  expect_true(design$two_stage$n <= 100)
+  expect_true(design$two_stage$ES < design$single_stage$nsingle)
 })
 
 test_that("two_stage_single_arm_tte works with log-normal distribution", {
@@ -185,8 +185,8 @@ test_that("two_stage_single_arm_tte works with log-normal distribution", {
   )
   
   expect_type(design, "list")
-  expect_named(design, c("param", "Single_stage", "Two_stage"))
-  expect_true(design$Two_stage$n > 0)
+  expect_named(design, c("param", "single_stage", "two_stage"))
+  expect_true(design$two_stage$n > 0)
 })
 
 test_that("two_stage_single_arm_tte works with gamma distribution", {
@@ -203,8 +203,8 @@ test_that("two_stage_single_arm_tte works with gamma distribution", {
   )
   
   expect_type(design, "list")
-  expect_named(design, c("param", "Single_stage", "Two_stage"))
-  expect_true(design$Two_stage$n > 0)
+  expect_named(design, c("param", "single_stage", "two_stage"))
+  expect_true(design$two_stage$n > 0)
 })
 
 test_that("two_stage_single_arm_tte works with log-logistic distribution", {
@@ -221,8 +221,8 @@ test_that("two_stage_single_arm_tte works with log-logistic distribution", {
   )
   
   expect_type(design, "list")
-  expect_named(design, c("param", "Single_stage", "Two_stage"))
-  expect_true(design$Two_stage$n > 0)
+  expect_named(design, c("param", "single_stage", "two_stage"))
+  expect_true(design$two_stage$n > 0)
 })
 
 test_that("two_stage_single_arm_tte validates input parameters", {
@@ -311,8 +311,8 @@ test_that("two_stage_single_arm_tte produces consistent results", {
     dist = "WB"
   )
   
-  expect_equal(design1$Two_stage$n1, design2$Two_stage$n1)
-  expect_equal(design1$Two_stage$n, design2$Two_stage$n)
-  expect_equal(design1$Two_stage$c1, design2$Two_stage$c1)
-  expect_equal(design1$Two_stage$c, design2$Two_stage$c)
+  expect_equal(design1$two_stage$n1, design2$two_stage$n1)
+  expect_equal(design1$two_stage$n, design2$two_stage$n)
+  expect_equal(design1$two_stage$c1, design2$two_stage$c1)
+  expect_equal(design1$two_stage$c, design2$two_stage$c)
 })

@@ -7,7 +7,8 @@
 simulate_trial(design, shape, scale)
 }
 \arguments{
-\item{design}{A design object (e.g., from \code{two_stage_single_arm_tte()})}
+\item{design}{A design object (e.g., from \code{two_stage_single_arm_tte()} or
+\code{single_stage_single_arm_tte()})}
 
 \item{shape}{Shape parameter for the survival distribution under simulation}
 
@@ -16,41 +17,50 @@ simulate_trial(design, shape, scale)
 \value{
 A list containing:
 \item{reject_h0}{Logical; TRUE if null hypothesis is rejected}
-\item{stopped_early}{Logical; TRUE if trial stopped at interim}
+\item{stopped_early}{Logical; TRUE if trial stopped at interim (two-stage only; FALSE for single-stage)}
 \item{enrolled_n}{Number of patients enrolled}
-\item{interim_data}{Data frame of patient data at interim analysis}
-\item{final_data}{Data frame of patient data at final analysis (if applicable)}
-\item{interim_stat}{Test statistic value at interim}
-\item{final_stat}{Test statistic value at final (if applicable)}
-\item{interim_time}{Calendar time of interim analysis}
-\item{final_time}{Calendar time of final analysis (if applicable)}
-\item{interim_events}{Number of events observed at interim}
-\item{final_events}{Number of events observed at final (if applicable)}
+\item{interim_data}{Data frame of patient data at interim analysis (two-stage only; NULL for single-stage)}
+\item{final_data}{Data frame of patient data at final analysis}
+\item{interim_stat}{Test statistic value at interim (two-stage only; NA for single-stage)}
+\item{final_stat}{Test statistic value at final}
+\item{interim_time}{Calendar time of interim analysis (two-stage only; NA for single-stage)}
+\item{final_time}{Calendar time of final analysis}
+\item{interim_events}{Number of events observed at interim (two-stage only; NA for single-stage)}
+\item{final_events}{Number of events observed at final}
 }
 \description{
 Simulates a single realization of a trial based on a design object created by
-\code{two_stage_single_arm_tte()} or other design functions in this package.
+\code{two_stage_single_arm_tte()}, \code{single_stage_single_arm_tte()}, or other design
+functions in this package.
 
 This is a generic function that will work with any trial design created by
-blueprint package functions.
+blueprint package functions. It automatically detects whether the design is
+single-stage or two-stage based on the class attribute.
 }
 \examples{
 \dontrun{
-# Create a design
-design <- two_stage_single_arm_tte(
+# Two-stage design
+design_two <- two_stage_single_arm_tte(
   shape = 1.47327, S0 = 0.5, x0 = 3.5, hr = 0.5913,
   tf = 5, rate = 2, alpha = 0.05, beta = 0.2,
   dist = "WB", restricted = FALSE
 )
 
 # Simulate one trial under H0
-# (Calculate scale_h0 from design parameters)
 scale_h0 <- 3.5 / (-log(0.5))^(1/1.47327)
-trial_result <- simulate_trial(design, shape = 1.47327, scale = scale_h0)
+trial_result <- simulate_trial(design_two, shape = 1.47327, scale = scale_h0)
 
-# Simulate one trial under H1  
-scale_h1 <- scale_h0 / (0.5913^(1/1.47327))
-trial_result <- simulate_trial(design, shape = 1.47327, scale = scale_h1)
+# Single-stage design
+design_single <- single_stage_single_arm_tte(
+  shape = 1.0, S0 = 0.5, x0 = 0.5, hr = 0.667,
+  tf = 1.0, rate = 32.4, alpha = 0.05, beta = 0.10,
+  two_sided = TRUE, dist = "WB", restricted = FALSE
+)
+
+# Simulate one trial under H1
+scale_h0 <- 0.5 / (-log(0.5))^(1/1.0)
+scale_h1 <- scale_h0 / (0.667^(1/1.0))
+trial_result <- simulate_trial(design_single, shape = 1.0, scale = scale_h1)
 }
 
 }

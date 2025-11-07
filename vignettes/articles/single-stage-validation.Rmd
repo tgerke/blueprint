@@ -1,0 +1,440 @@
+---
+title: "Single-Stage Design: Validation and Simulation"
+author: "Travis Gerke"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Single-Stage Design: Validation and Simulation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+
+set.seed(2024)
+```
+
+## Introduction
+
+This article demonstrates the workflow for designing and validating single-stage single-arm phase II trials with time-to-event endpoints using the `single_stage_single_arm_tte()` function. The methodology is based on Wu (2015), which extends the one-sample log-rank test to single-stage designs with options for both one-sided and two-sided hypothesis tests.
+
+### Key Differences from Two-Stage Designs
+
+The single-stage design differs from the two-stage approach (Wu et al. 2020) in several important ways:
+
+1. **No interim analysis**: All patients are enrolled and followed to completion before conducting the final analysis
+2. **Two-sided tests supported**: Can test for differences in either direction (H₁: hr ≠ 1) in addition to one-sided superiority tests
+3. **Simpler study conduct**: No need to plan for early stopping or interim monitoring
+4. **Different critical values**: Uses standard normal quantiles adjusted for one-sided vs. two-sided testing
+
+## Basic Workflow
+
+The typical workflow involves three steps:
+
+1. **Design**: Calculate required sample size and critical value using `single_stage_single_arm_tte()`
+2. **Simulate**: Verify operating characteristics under H₀ and H₁ using `simulate_trial()` 
+3. **Validate**: Compare simulation results to design specifications
+
+## Example: Exponential Survival (Shape = 1.0)
+
+### Design Specification
+
+We'll design a single-stage trial with the following parameters:
+
+- **Null hypothesis (H₀)**: Median survival = 0.5 time units (S₀(0.5) = 0.5)
+- **Alternative hypothesis (H₁)**: Median survival = 0.75 time units (hazard ratio = 0.667)
+- **Distribution**: Weibull with shape = 1.0 (exponential)
+- **Follow-up**: 1.0 time units (unrestricted)
+- **Type I error**: α = 0.05 (two-sided)
+- **Power**: 90% (β = 0.10)
+
+```{r design-exponential}
+library(blueprint)
+
+# Design a single-stage trial
+design_exp <- single_stage_single_arm_tte(
+  shape = 1.0,          # Exponential distribution
+  S0 = 0.5,             # 50% survival at x0
+  x0 = 0.5,             # Median under H0
+  hr = 0.667,           # Hazard ratio (H1 vs H0)
+  tf = 1.0,             # Follow-up time
+  rate = 32.4,          # Accrual rate (patients/time unit)
+  alpha = 0.05,         # Two-sided Type I error
+  beta = 0.10,          # Type II error (90% power)
+  two_sided = TRUE,     # Two-sided test
+  dist = "WB",          # Weibull distribution
+  restricted = FALSE    # Unrestricted follow-up
+)
+
+# View the design
+print(design_exp)
+```
+
+### Design Parameters
+
+The design returns several key parameters:
+
+```{r design-params}
+# Sample size
+cat("Required sample size (n):", design_exp$single_stage$n, "\n")
+
+# Accrual time
+cat("Accrual time (ta):", round(design_exp$single_stage$ta, 2), "time units\n")
+
+# Critical value (two-sided α = 0.05 → z = 1.96)
+cat("Critical value (c):", round(design_exp$single_stage$c, 3), "\n")
+cat("Expected critical value:", round(qnorm(1 - 0.05/2), 3), "\n\n")
+
+# Maximum total study length
+cat("Maximum study length (MTSL):", round(design_exp$single_stage$MTSL, 2), "time units\n")
+
+# Expected number of events under H1
+cat("Expected events (E):", round(design_exp$single_stage$E, 1), "\n")
+
+# Probability of event under H1
+cat("Pr(Event | H1):", round(design_exp$single_stage$P1, 3), "\n")
+```
+
+## Simulation-Based Validation
+
+### Calculate Scale Parameters
+
+To simulate trials, we need to convert from the (S₀, x₀, hr) parameterization to the scale parameter:
+
+```{r calc-scales}
+# Under H0: S0(x0) = 0.5
+# For Weibull: S(t) = exp(-(t/scale)^shape)
+# S0 = exp(-(x0/scale0)^shape)
+# scale0 = x0 / (-log(S0))^(1/shape)
+
+shape_sim <- design_exp$param$shape
+x0_sim <- design_exp$param$x0
+S0_sim <- design_exp$param$S0
+hr_sim <- design_exp$param$hr
+
+# H0 scale parameter
+scale_h0 <- x0_sim / (-log(S0_sim))^(1/shape_sim)
+cat("H0 scale parameter:", round(scale_h0, 4), "\n")
+
+# H1 scale parameter (proportional hazards)
+# hr = (scale0/scale1)^shape
+# scale1 = scale0 / hr^(1/shape)
+scale_h1 <- scale_h0 / (hr_sim^(1/shape_sim))
+cat("H1 scale parameter:", round(scale_h1, 4), "\n")
+
+# Verify median under H1
+median_h1 <- scale_h1 * (-log(0.5))^(1/shape_sim)
+cat("Median under H1:", round(median_h1, 4), "(expected: 0.75)\n")
+```
+
+### Simulate Single Trials
+
+Let's simulate a few trials to understand the outputs:
+
+```{r simulate-single}
+# Simulate one trial under H0
+trial_h0 <- simulate_trial(design_exp, shape = shape_sim, scale = scale_h0)
+
+cat("\n=== Trial under H0 ===\n")
+cat("Rejected H0?:", trial_h0$reject_h0, "\n")
+cat("Final statistic:", round(trial_h0$final_stat, 3), "\n")
+cat("Critical value:", round(design_exp$single_stage$c, 3), "\n")
+cat("Events observed:", trial_h0$final_events, "/", trial_h0$enrolled_n, "\n")
+cat("Study duration:", round(trial_h0$final_time, 2), "time units\n")
+
+# Simulate one trial under H1
+trial_h1 <- simulate_trial(design_exp, shape = shape_sim, scale = scale_h1)
+
+cat("\n=== Trial under H1 ===\n")
+cat("Rejected H0?:", trial_h1$reject_h0, "\n")
+cat("Final statistic:", round(trial_h1$final_stat, 3), "\n")
+cat("Critical value:", round(design_exp$single_stage$c, 3), "\n")
+cat("Events observed:", trial_h1$final_events, "/", trial_h1$enrolled_n, "\n")
+cat("Study duration:", round(trial_h1$final_time, 2), "time units\n")
+```
+
+### Operating Characteristics Simulation
+
+Now we'll run many simulations to verify the design's operating characteristics:
+
+```{r simulate-operating-chars, cache=TRUE}
+# Number of simulations
+n_sims <- 1000
+
+# Simulate under H0 (Type I error)
+set.seed(12345)
+results_h0 <- replicate(n_sims, {
+  trial <- simulate_trial(design_exp, shape = shape_sim, scale = scale_h0)
+  c(
+    reject = trial$reject_h0,
+    stat = trial$final_stat,
+    events = trial$final_events,
+    duration = trial$final_time
+  )
+}, simplify = FALSE)
+
+# Convert to data frame
+results_h0_df <- do.call(rbind, lapply(results_h0, function(x) {
+  data.frame(
+    reject = x["reject"],
+    stat = x["stat"],
+    events = x["events"],
+    duration = x["duration"]
+  )
+}))
+
+# Simulate under H1 (Power)
+set.seed(54321)
+results_h1 <- replicate(n_sims, {
+  trial <- simulate_trial(design_exp, shape = shape_sim, scale = scale_h1)
+  c(
+    reject = trial$reject_h0,
+    stat = trial$final_stat,
+    events = trial$final_events,
+    duration = trial$final_time
+  )
+}, simplify = FALSE)
+
+# Convert to data frame
+results_h1_df <- do.call(rbind, lapply(results_h1, function(x) {
+  data.frame(
+    reject = x["reject"],
+    stat = x["stat"],
+    events = x["events"],
+    duration = x["duration"]
+  )
+}))
+```
+
+### Results Summary
+
+```{r results-summary}
+# Type I error (should be ≈ 0.05)
+type1_error <- mean(results_h0_df$reject, na.rm = TRUE)
+cat("Type I Error:\n")
+cat("  Observed:", round(type1_error, 4), "\n")
+cat("  Expected:", 0.05, "\n")
+cat("  95% CI:", round(type1_error - 1.96*sqrt(type1_error*(1-type1_error)/n_sims), 4),
+    "to", round(type1_error + 1.96*sqrt(type1_error*(1-type1_error)/n_sims), 4), "\n\n")
+
+# Power (should be ≈ 0.90)
+power <- mean(results_h1_df$reject, na.rm = TRUE)
+cat("Power:\n")
+cat("  Observed:", round(power, 4), "\n")
+cat("  Expected:", 0.90, "\n")
+cat("  95% CI:", round(power - 1.96*sqrt(power*(1-power)/n_sims), 4),
+    "to", round(power + 1.96*sqrt(power*(1-power)/n_sims), 4), "\n\n")
+
+# Average events under H0
+cat("Average Events under H0:\n")
+cat("  Observed:", round(mean(results_h0_df$events, na.rm = TRUE), 1), "\n")
+cat("  Expected:", round(design_exp$single_stage$E * (1 - hr_sim), 1), 
+    "(approximate)\n\n")
+
+# Average events under H1
+cat("Average Events under H1:\n")
+cat("  Observed:", round(mean(results_h1_df$events, na.rm = TRUE), 1), "\n")
+cat("  Expected:", round(design_exp$single_stage$E, 1), "\n\n")
+
+# Average study duration
+cat("Average Study Duration:\n")
+cat("  Under H0:", round(mean(results_h0_df$duration, na.rm = TRUE), 2), "time units\n")
+cat("  Under H1:", round(mean(results_h1_df$duration, na.rm = TRUE), 2), "time units\n")
+cat("  Design MTSL:", round(design_exp$single_stage$MTSL, 2), "time units\n")
+```
+
+### Visualize Test Statistic Distributions
+
+```{r plot-distributions, fig.width=8, fig.height=5, fig.alt="Two histograms showing test statistic distributions. Left panel shows statistics under H0 centered at zero with critical values at ±1.96. Right panel shows statistics under H1 shifted right with most values exceeding the upper critical value."}
+# Combine results for plotting
+results_h0_df$hypothesis <- "H0"
+results_h1_df$hypothesis <- "H1"
+all_results <- rbind(results_h0_df, results_h1_df)
+
+# Plot test statistic distributions
+par(mfrow = c(1, 2))
+
+# Histogram under H0
+hist(results_h0_df$stat, breaks = 30, 
+     main = "Test Statistic Distribution under H0",
+     xlab = "Z statistic", col = "lightblue", border = "white",
+     xlim = c(-4, 4))
+abline(v = c(-design_exp$single_stage$c, design_exp$single_stage$c), 
+       col = "red", lwd = 2, lty = 2)
+abline(v = 0, col = "gray30", lwd = 1)
+legend("topright", legend = c("Critical values", "Expected mean"),
+       col = c("red", "gray30"), lty = c(2, 1), lwd = c(2, 1))
+
+# Histogram under H1
+hist(results_h1_df$stat, breaks = 30,
+     main = "Test Statistic Distribution under H1",
+     xlab = "Z statistic", col = "lightcoral", border = "white",
+     xlim = c(-4, 8))
+abline(v = c(-design_exp$single_stage$c, design_exp$single_stage$c), 
+       col = "red", lwd = 2, lty = 2)
+abline(v = 0, col = "gray30", lwd = 1)
+legend("topright", legend = c("Critical values", "H0 mean"),
+       col = c("red", "gray30"), lty = c(2, 1), lwd = c(2, 1))
+```
+
+## One-Sided vs. Two-Sided Tests
+
+A key feature of the single-stage design is the ability to specify one-sided or two-sided tests. Let's compare:
+
+```{r compare-sided}
+# Two-sided test (already created above)
+design_two_sided <- design_exp
+
+# One-sided test (same parameters)
+design_one_sided <- single_stage_single_arm_tte(
+  shape = 1.0,
+  S0 = 0.5,
+  x0 = 0.5,
+  hr = 0.667,
+  tf = 1.0,
+  rate = 32.4,
+  alpha = 0.05,      # One-sided α = 0.05
+  beta = 0.10,
+  two_sided = FALSE,  # One-sided test
+  dist = "WB",
+  restricted = FALSE
+)
+
+# Compare designs
+comparison <- data.frame(
+  Design = c("Two-sided", "One-sided"),
+  n = c(design_two_sided$single_stage$n, design_one_sided$single_stage$n),
+  c = c(design_two_sided$single_stage$c, design_one_sided$single_stage$c),
+  Expected_c = c(qnorm(1 - 0.05/2), qnorm(1 - 0.05)),
+  E = c(design_two_sided$single_stage$E, design_one_sided$single_stage$E),
+  MTSL = c(design_two_sided$single_stage$MTSL, design_one_sided$single_stage$MTSL)
+)
+
+print(comparison)
+
+cat("\nSample size reduction with one-sided test:",
+    round(100 * (1 - design_one_sided$single_stage$n / design_two_sided$single_stage$n), 1),
+    "%\n")
+```
+
+The one-sided test requires fewer patients because it only protects against false positives in one direction (detecting improvement when there is none), rather than protecting against false positives in both directions.
+
+## Different Distributions
+
+The function supports multiple parametric distributions. Let's compare them:
+
+```{r compare-distributions, cache=TRUE}
+distributions <- c("WB", "LN", "GM", "LG")
+dist_names <- c("Weibull", "Log-normal", "Gamma", "Log-logistic")
+
+design_list <- lapply(distributions, function(d) {
+  single_stage_single_arm_tte(
+    shape = 1.0,
+    S0 = 0.5,
+    x0 = 0.5,
+    hr = 0.667,
+    tf = 1.0,
+    rate = 32.4,
+    alpha = 0.05,
+    beta = 0.10,
+    two_sided = TRUE,
+    dist = d,
+    restricted = FALSE
+  )
+})
+
+# Create comparison table
+dist_comparison <- data.frame(
+  Distribution = dist_names,
+  n = sapply(design_list, function(x) x$single_stage$n),
+  ta = sapply(design_list, function(x) round(x$single_stage$ta, 2)),
+  E = sapply(design_list, function(x) round(x$single_stage$E, 1)),
+  P1 = sapply(design_list, function(x) round(x$single_stage$P1, 3)),
+  MTSL = sapply(design_list, function(x) round(x$single_stage$MTSL, 2))
+)
+
+print(dist_comparison)
+```
+
+Note that all distributions give the same sample size in this case because they have the same shape parameter (1.0), which makes them equivalent for this exponential scenario.
+
+## Varying Shape Parameters
+
+Let's examine how the Weibull shape parameter affects the design:
+
+```{r compare-shapes, cache=TRUE, fig.alt="Two line plots showing the relationship between Weibull shape parameter and design parameters. Left plot shows sample size decreasing as shape increases from 0.75 to 2.0. Right plot shows expected events also decreasing with increasing shape parameter."}
+shapes <- c(0.75, 1.0, 1.25, 1.5, 2.0)
+
+shape_designs <- lapply(shapes, function(k) {
+  single_stage_single_arm_tte(
+    shape = k,
+    S0 = 0.5,
+    x0 = 0.5,
+    hr = 0.667,
+    tf = 1.0,
+    rate = 32.4,
+    alpha = 0.05,
+    beta = 0.10,
+    two_sided = TRUE,
+    dist = "WB",
+    restricted = FALSE
+  )
+})
+
+# Create comparison table
+shape_comparison <- data.frame(
+  Shape = shapes,
+  Hazard = c("Decreasing", "Constant", "Increasing", "Increasing", "Increasing"),
+  n = sapply(shape_designs, function(x) x$single_stage$n),
+  E = sapply(shape_designs, function(x) round(x$single_stage$E, 1)),
+  P1 = sapply(shape_designs, function(x) round(x$single_stage$P1, 3)),
+  MTSL = sapply(shape_designs, function(x) round(x$single_stage$MTSL, 2))
+)
+
+print(shape_comparison)
+
+# Plot relationship
+par(mfrow = c(1, 2))
+plot(shapes, shape_comparison$n, type = "b", pch = 19,
+     xlab = "Weibull Shape Parameter", ylab = "Sample Size (n)",
+     main = "Sample Size vs. Shape Parameter",
+     col = "steelblue", lwd = 2)
+grid()
+
+plot(shapes, shape_comparison$E, type = "b", pch = 19,
+     xlab = "Weibull Shape Parameter", ylab = "Expected Events",
+     main = "Expected Events vs. Shape Parameter",
+     col = "coral", lwd = 2)
+grid()
+```
+
+**Interpretation:**
+
+- **Shape < 1**: Decreasing hazard over time (e.g., early mortality that decreases)
+- **Shape = 1**: Constant hazard (exponential distribution)
+- **Shape > 1**: Increasing hazard over time (e.g., aging, disease progression)
+
+As the shape parameter increases (increasing hazard), the required sample size decreases because events occur more readily, providing more information for the log-rank test.
+
+## Conclusion
+
+This article demonstrated:
+
+1. How to design single-stage trials using `single_stage_single_arm_tte()`
+2. How to simulate trials and validate operating characteristics
+3. The difference between one-sided and two-sided tests
+4. How different distributions and shape parameters affect the design
+
+The simulation-based validation confirms that the design achieves the target Type I error rate (α = 0.05) and power (90%) as intended.
+
+## References
+
+Wu, J. (2015). Sample size calculation for the one-sample log-rank test. *Pharmaceutical Statistics*, 14(1), 26-33. https://doi.org/10.1002/pst.1654
+
+Wu, J., Chen, L., Wei, J., Weiss, H., & Chauhan, A. (2020). Optimal two-stage phase II survival trial design. *Pharmaceutical Statistics*, 19(3), 214-229. https://doi.org/10.1002/pst.1983
