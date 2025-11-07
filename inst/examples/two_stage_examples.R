@@ -141,10 +141,10 @@ for (i in seq_along(hr_values)) {
     dist = "WB"
   )
   
-  results$n_single[i] <- design$Single_stage$nsingle
-  results$n_two_stage[i] <- design$Two_stage$n
-  results$n1[i] <- design$Two_stage$n1
-  results$ES[i] <- design$Two_stage$ES
+  results$n_single[i] <- design$single_stage$nsingle
+  results$n_two_stage[i] <- design$two_stage$n
+  results$n1[i] <- design$two_stage$n1
+  results$ES[i] <- design$two_stage$ES
 }
 
 print(results)

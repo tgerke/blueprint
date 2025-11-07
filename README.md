@@ -29,7 +29,7 @@ devtools::install_github("tgerke/blueprint")
 
 ## Features
 
-### Two-Stage Single-Arm Designs with Time-to-Event Endpoints
+### 1. Two-Stage Single-Arm Designs with Time-to-Event Endpoints
 
 The package implements optimal two-stage designs for single-arm phase II
 clinical trials with time-to-event endpoints, based on the methodology
@@ -47,6 +47,29 @@ Key features:
   adequate power
 - **Early stopping**: Allows for futility stopping at the first stage
 - **Restricted follow-up**: Accommodates realistic trial constraints
+
+### 2. Two-Stage Basket Trial Designs with Binary Endpoints
+
+The package also implements two-stage basket trial designs for
+evaluating a single treatment across multiple cancer types or genetic
+subtypes, based on:
+
+> Jing, Y., Qin, R., & Liu, S. (2022). Two-stage basket trial design
+> with time-to-event endpoint allowing for early termination of
+> individual baskets and efficient information borrowing across baskets.
+> *Statistics in Medicine*, 41(27), 5427-5443.
+> <https://doi.org/10.1002/sim.9576>
+
+Key features:
+
+- **Multiple indications**: Simultaneously evaluate treatment across K
+  different cancer types/subtypes
+- **Information borrowing**: Bayesian approach borrows strength across
+  baskets when appropriate
+- **Individual basket early termination**: Each indication can stop for
+  futility at interim
+- **Flexible settings**: Supports both homogeneous (all baskets
+  identical) and heterogeneous (baskets differ) scenarios
 
 ## Usage
 
@@ -88,11 +111,11 @@ print(design)
 The function returns a list with three components:
 
 1.  **`param`**: Input parameters
-2.  **`Single_stage`**: Single-stage design for comparison
+2.  **`single_stage`**: Single-stage design for comparison
     - `nsingle`: Total sample size
     - `tasingle`: Total accrual time
     - `csingle`: Critical value
-3.  **`Two_stage`**: Optimal two-stage design
+3.  **`two_stage`**: Optimal two-stage design
     - `n1`: Stage 1 sample size
     - `c1`: Stage 1 critical value (stop for futility if Z₁ ≤ c₁)
     - `n`: Total sample size
@@ -117,6 +140,56 @@ Based on the example design:
     - If Z ≤ c, conclude no efficacy
     - If Z \> c, conclude the treatment is promising
 
+### Example: Basket Trial
+
+This example designs a basket trial to evaluate a targeted therapy
+across three different cancer types with a shared biomarker.
+
+``` r
+# Design a basket trial:
+# - 3 cancer types (baskets/indications)
+# - Null response rate: 10% per basket
+# - Target response rate: 30% per basket
+# - Type I error: 5% per basket, Power: 80% per basket
+
+basket_design <- two_stage_basket_trial(
+  K = 3,                    # Number of indications
+  p0 = 0.10,                # Null response rate
+  pa = 0.30,                # Alternative response rate
+  constraint_alpha = 0.05,  # Type I error per basket
+  constraint_beta = 0.20,   # Type II error per basket (80% power)
+  min_S = 45,               # Minimum sample size per basket to search
+  max_S = 70,               # Maximum sample size per basket to search
+  alpha1_grid = seq(0.05, 0.95, by = 0.05),  # Grid for interim futility threshold
+  alpha2_grid = seq(0.05, 0.95, by = 0.05),  # Grid for final efficacy threshold
+  nsim_oc = 1000,           # Simulations per design evaluation
+  parallel = TRUE,          # Use parallel processing
+  ncores = 4                # Number of cores
+)
+
+# View the design
+print(basket_design$design)
+
+# View operating characteristics by basket
+print(basket_design$operating_characteristics)
+```
+
+The basket trial design returns:
+
+- **`S`**: Sample size per basket (stage 2 total)
+- **`alpha1`**: Interim futility threshold (Bayesian posterior
+  probability)
+- **`alpha2`**: Final efficacy threshold (Bayesian posterior
+  probability)
+- **Operating characteristics** for each basket:
+  - Type I error rate
+  - Power
+  - Expected sample size under H₀
+  - Probability of early stopping
+
+**Key advantage**: Information borrowing across baskets reduces total
+sample size compared to running separate trials for each indication.
+
 ## Supported Distributions
 
 The package supports five survival distributions under the null
@@ -133,3 +206,60 @@ hypothesis:
 For parametric distributions, you need to specify only the shape
 parameter; the scale parameter is derived from the specified survival
 probability (`S0`) at time point `x0`.
+
+## Simulation and Validation
+
+The package includes comprehensive simulation capabilities for
+validating designs and understanding trial behavior:
+
+``` r
+# Simulate a single trial realization
+trial_result <- simulate_trial(
+  design = design,  # Any design object (TTE or basket)
+  shape = 1.47327,  # For TTE designs
+  scale = scale_h1  # For TTE designs
+  # p_true = c(0.30, 0.30, 0.30)  # For basket trials
+)
+
+# Validate operating characteristics with Monte Carlo simulation
+oc_results <- simulate_operating_characteristics(
+  design = design,
+  shape = 1.47327,
+  scale_h0 = scale_h0,  # Under null hypothesis
+  scale_h1 = scale_h1,  # Under alternative hypothesis
+  n_sims = 1000,
+  seed = 123
+)
+
+# Check Type I error and power
+cat("Type I Error:", round(oc_results$type1_error, 3), "\n")
+cat("Power:       ", round(oc_results$power, 3), "\n")
+```
+
+See the package vignettes for detailed examples and validation against
+published results.
+
+## Documentation
+
+Comprehensive documentation is available:
+
+- **Vignettes**:
+  - `vignette("two-stage-tte")` - Introduction to two-stage TTE designs
+  - `vignette("single-stage-simulations")` - Single-stage design
+    simulations
+  - `vignette("wu-validation")` - Validation against Wu et al. (2020)
+  - `vignette("jing-validation")` - Validation against Jing et
+    al. (2022)
+- **Function help**: `?two_stage_single_arm_tte`,
+  `?two_stage_basket_trial`, `?simulate_trial`
+
+## References
+
+Wu, J., Chen, L., Wei, J., Weiss, H., & Chauhan, A. (2020). Optimal
+two-stage phase II survival trial design. *Pharmaceutical Statistics*,
+19(3), 214-229. <https://doi.org/10.1002/pst.1983>
+
+Jing, Y., Qin, R., & Liu, S. (2022). Two-stage basket trial design with
+time-to-event endpoint allowing for early termination of individual
+baskets and efficient information borrowing across baskets. *Statistics
+in Medicine*, 41(27), 5427-5443. <https://doi.org/10.1002/sim.9576>

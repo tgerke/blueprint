@@ -93,3 +93,136 @@ print.summary.two_stage_design <- function(x, ...) {
   
   invisible(x)
 }
+
+
+#' Print method for basket_trial_design results
+#'
+#' @param x Output from \code{two_stage_basket_trial}
+#' @param ... Additional arguments (not used)
+#'
+#' @return Invisibly returns the input object
+#' @export
+print.basket_trial_design <- function(x, ...) {
+  cat("Optimal Two-Stage Basket Trial Design (Aggregated Futility Analysis)\n")
+  cat("===================================================================\n\n")
+  
+  K <- x$param$K
+  p0 <- x$param$p0[[1]]
+  pa <- x$param$pa[[1]]
+  
+  cat("Trial Configuration:\n")
+  cat(sprintf("  Number of indications: %d\n", K))
+  cat(sprintf("  Setting: %s\n", ifelse(x$param$homogeneous, "Homogeneous", "Heterogeneous")))
+  cat(sprintf("  Global Type I error: %.3f\n", x$param$alpha))
+  cat(sprintf("  Expected Type II error: %.3f (power: %.1f%%)\n", 
+              x$param$beta, (1 - x$param$beta) * 100))
+  cat("\n")
+  
+  cat("Response Rates:\n")
+  cat("  Indication  p0     pa    \n")
+  cat("  ----------  -----  -----\n")
+  for (i in 1:K) {
+    cat(sprintf("  %10d  %.3f  %.3f\n", i, p0[i], pa[i]))
+  }
+  cat("\n")
+  
+  N <- x$design$N[[1]]
+  r <- x$design$r[[1]]
+  
+  cat("Design Parameters:\n")
+  cat("  Stage I (Aggregated Futility Analysis):\n")
+  cat(sprintf("    Total sample size: %d patients\n", x$design$S))
+  cat(sprintf("    Significance level: %.3f\n", x$design$alpha1))
+  cat(sprintf("    Critical value R1: %d (continue if >=%d responders)\n", 
+              x$design$R1, x$design$R1))
+  cat("\n")
+  
+  cat("  Stage II (Pruning and Pooling):\n")
+  cat("    Sample sizes per indication:\n")
+  for (i in 1:K) {
+    cat(sprintf("      Indication %d: N=%d, r=%d (prune if <%d responders)\n", 
+                i, N[i], r[i], r[i]))
+  }
+  cat(sprintf("    Total sample size: %d patients\n", x$design$total_N))
+  cat(sprintf("    Significance level: %.3f\n", x$design$alpha2))
+  cat("\n")
+  
+  cat("Operating Characteristics:\n")
+  cat(sprintf("  Expected sample size under H0: %.1f\n", x$design$EN_H0))
+  cat(sprintf("  Actual Type I error: %.4f\n", x$performance$type1_error))
+  cat(sprintf("  Actual expected power: %.4f\n", x$performance$expected_power))
+  cat(sprintf("  P(continue to Stage II | H0): %.4f\n", 
+              x$performance$prob_continue_h0))
+  
+  invisible(x)
+}
+
+
+#' Summary method for basket_trial_design results
+#'
+#' @param object Output from \code{two_stage_basket_trial}
+#' @param ... Additional arguments (not used)
+#'
+#' @return A summary object
+#' @export
+summary.basket_trial_design <- function(object, ...) {
+  structure(
+    list(
+      param = object$param,
+      design = object$design,
+      performance = object$performance,
+      efficiency = object$design$EN_H0 / object$design$total_N,
+      avg_pruning_threshold = mean(object$design$r[[1]]),
+      avg_indication_n = mean(object$design$N[[1]])
+    ),
+    class = "summary.basket_trial_design"
+  )
+}
+
+
+#' Print summary for basket trial design
+#'
+#' @param x Summary object
+#' @param ... Additional arguments (not used)
+#'
+#' @return Invisibly returns the input object
+#' @export
+print.summary.basket_trial_design <- function(x, ...) {
+  cat("Summary of Two-Stage Basket Trial Design\n")
+  cat("=========================================\n\n")
+  
+  K <- x$param$K
+  p0 <- x$param$p0[[1]]
+  pa <- x$param$pa[[1]]
+  
+  cat("Design Summary:\n")
+  cat(sprintf("  Number of indications: %d\n", K))
+  cat(sprintf("  Setting: %s\n", ifelse(x$param$homogeneous, "Homogeneous", "Heterogeneous")))
+  cat(sprintf("  Target Type I error: %.3f (actual: %.4f)\n", 
+              x$param$alpha, x$performance$type1_error))
+  cat(sprintf("  Target power: %.1f%% (actual: %.1f%%)\n", 
+              (1 - x$param$beta) * 100, x$performance$expected_power * 100))
+  cat("\n")
+  
+  cat("Sample Size Summary:\n")
+  cat(sprintf("  Stage I total: %d patients\n", x$design$S))
+  cat(sprintf("  Stage II total (maximum): %d patients\n", x$design$total_N))
+  cat(sprintf("  Expected under H0: %.1f patients\n", x$design$EN_H0))
+  cat(sprintf("  Efficiency (E[N|H0] / total N): %.1f%%\n", x$efficiency * 100))
+  cat(sprintf("  Average per indication: %.1f patients\n", x$avg_indication_n))
+  cat("\n")
+  
+  cat("Decision Thresholds:\n")
+  cat(sprintf("  Stage I: Continue if >=%d total responders\n", x$design$R1))
+  cat(sprintf("  Stage II: Average pruning threshold r = %.1f responders\n", 
+              x$avg_pruning_threshold))
+  cat("\n")
+  
+  cat("Response Rate Ranges:\n")
+  cat(sprintf("  Null (p0): %.3f to %.3f\n", min(p0), max(p0)))
+  cat(sprintf("  Alternative (pa): %.3f to %.3f\n", min(pa), max(pa)))
+  cat(sprintf("  Improvement: %.1f%% to %.1f%% absolute\n", 
+              min((pa - p0) * 100), max((pa - p0) * 100)))
+  
+  invisible(x)
+}

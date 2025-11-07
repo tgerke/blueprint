@@ -69,9 +69,9 @@ columns \code{time} and \code{status} for fitting logspline distribution.}
 A list with three elements:
 \describe{
 \item{param}{Data frame of input parameters}
-\item{Single_stage}{Data frame with single-stage design parameters:
+\item{single_stage}{Data frame with single-stage design parameters:
 \code{nsingle}, \code{tasingle}, \code{csingle}}
-\item{Two_stage}{Data frame with two-stage design parameters:
+\item{two_stage}{Data frame with two-stage design parameters:
 \code{n1}, \code{c1}, \code{n}, \code{c}, \code{t1}, \code{MTSL},
 \code{ES}, \code{PS}}
 }

@@ -76,7 +76,7 @@
 #' @return A list with two elements:
 #'   \describe{
 #'     \item{param}{Data frame of input parameters}
-#'     \item{Single_stage}{Data frame with single-stage design parameters:
+#'     \item{single_stage}{Data frame with single-stage design parameters:
 #'       \code{n}, \code{ta}, \code{c}, \code{MTSL} (maximum total study length),
 #'       \code{E} (expected events), \code{P1} (probability of event)}
 #'   }

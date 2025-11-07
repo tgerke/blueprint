@@ -20,10 +20,7 @@ Suggests:
     testthat (>= 3.0.0),
     logspline,
     knitr,
-    rmarkdown,
-    furrr,
-    future,
-    progressr
+    rmarkdown
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Config/Needs/website: rmarkdown

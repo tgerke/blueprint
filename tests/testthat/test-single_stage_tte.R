@@ -18,16 +18,16 @@ test_that("single_stage_single_arm_tte validates against internal app: Case 1 (s
   )
   
   # Validate sample size
-  expect_equal(design$Single_stage$n, 81, tolerance = 2)
+  expect_equal(design$single_stage$n, 81, tolerance = 2)
   
   # Validate expected events (should be close to 68)
-  expect_equal(design$Single_stage$E, 68, tolerance = 2)
+  expect_equal(design$single_stage$E, 68, tolerance = 2)
   
   # Validate probability of event (should be close to 0.8453)
-  expect_equal(design$Single_stage$P1, 0.8453, tolerance = 0.02)
+  expect_equal(design$single_stage$P1, 0.8453, tolerance = 0.02)
   
   # Validate accrual time (should be close to 2.5)
-  expect_equal(design$Single_stage$ta, 2.5, tolerance = 0.2)
+  expect_equal(design$single_stage$ta, 2.5, tolerance = 0.2)
 })
 
 test_that("single_stage_single_arm_tte validates against internal app: Case 2 (shape=1.25, tf=1.0)", {
@@ -48,9 +48,9 @@ test_that("single_stage_single_arm_tte validates against internal app: Case 2 (s
     restricted = FALSE
   )
   
-  expect_equal(design$Single_stage$n, 52, tolerance = 2)
-  expect_equal(design$Single_stage$E, 47, tolerance = 2)
-  expect_equal(design$Single_stage$P1, 0.8957, tolerance = 0.02)
+  expect_equal(design$single_stage$n, 52, tolerance = 2)
+  expect_equal(design$single_stage$E, 47, tolerance = 2)
+  expect_equal(design$single_stage$P1, 0.8957, tolerance = 0.02)
 })
 
 test_that("single_stage_single_arm_tte validates against internal app: Case 3 (shape=1.50, tf=1.0)", {
@@ -71,9 +71,9 @@ test_that("single_stage_single_arm_tte validates against internal app: Case 3 (s
     restricted = FALSE
   )
   
-  expect_equal(design$Single_stage$n, 37, tolerance = 2)
-  expect_equal(design$Single_stage$E, 34, tolerance = 2)
-  expect_equal(design$Single_stage$P1, 0.9284, tolerance = 0.02)
+  expect_equal(design$single_stage$n, 37, tolerance = 2)
+  expect_equal(design$single_stage$E, 34, tolerance = 2)
+  expect_equal(design$single_stage$P1, 0.9284, tolerance = 0.02)
 })
 
 test_that("single_stage_single_arm_tte validates against internal app: Case 4 (shape=2.00, tf=1.0)", {
@@ -94,9 +94,9 @@ test_that("single_stage_single_arm_tte validates against internal app: Case 4 (s
     restricted = FALSE
   )
   
-  expect_equal(design$Single_stage$n, 22, tolerance = 2)
-  expect_equal(design$Single_stage$E, 21, tolerance = 1)
-  expect_equal(design$Single_stage$P1, 0.9628, tolerance = 0.02)
+  expect_equal(design$single_stage$n, 22, tolerance = 2)
+  expect_equal(design$single_stage$E, 21, tolerance = 1)
+  expect_equal(design$single_stage$P1, 0.9628, tolerance = 0.02)
 })
 
 test_that("single_stage_single_arm_tte validates against internal app: Extended Case (tf=1.5)", {
@@ -117,9 +117,9 @@ test_that("single_stage_single_arm_tte validates against internal app: Extended 
     restricted = FALSE
   )
   
-  expect_equal(design$Single_stage$n, 78, tolerance = 2)
-  expect_equal(design$Single_stage$E, 70, tolerance = 2)
-  expect_equal(design$Single_stage$P1, 0.9025, tolerance = 0.02)
+  expect_equal(design$single_stage$n, 78, tolerance = 2)
+  expect_equal(design$single_stage$E, 70, tolerance = 2)
+  expect_equal(design$single_stage$P1, 0.9025, tolerance = 0.02)
 })
 
 test_that("single_stage_single_arm_tte validates against internal app: Extended Case (tf=2.0)", {
@@ -140,9 +140,9 @@ test_that("single_stage_single_arm_tte validates against internal app: Extended 
     restricted = FALSE
   )
   
-  expect_equal(design$Single_stage$n, 76, tolerance = 2)
-  expect_equal(design$Single_stage$E, 71, tolerance = 2)
-  expect_equal(design$Single_stage$P1, 0.9386, tolerance = 0.02)
+  expect_equal(design$single_stage$n, 76, tolerance = 2)
+  expect_equal(design$single_stage$E, 71, tolerance = 2)
+  expect_equal(design$single_stage$P1, 0.9386, tolerance = 0.02)
 })
 
 test_that("single_stage_single_arm_tte works with one-sided test", {
@@ -162,7 +162,7 @@ test_that("single_stage_single_arm_tte works with one-sided test", {
   )
   
   # One-sided critical value should be qnorm(0.95) = 1.645
-  expect_equal(design_one_sided$Single_stage$c, qnorm(0.95), tolerance = 0.01)
+  expect_equal(design_one_sided$single_stage$c, qnorm(0.95), tolerance = 0.01)
   
   # Should have smaller sample size than two-sided
   design_two_sided <- single_stage_single_arm_tte(
@@ -179,7 +179,7 @@ test_that("single_stage_single_arm_tte works with one-sided test", {
     restricted = FALSE
   )
   
-  expect_true(design_one_sided$Single_stage$n < design_two_sided$Single_stage$n)
+  expect_true(design_one_sided$single_stage$n < design_two_sided$single_stage$n)
 })
 
 test_that("single_stage_single_arm_tte returns correct structure", {
@@ -200,7 +200,7 @@ test_that("single_stage_single_arm_tte returns correct structure", {
   # Check structure
   expect_type(design, "list")
   expect_s3_class(design, "single_stage_design")
-  expect_named(design, c("param", "Single_stage"))
+  expect_named(design, c("param", "single_stage"))
   
   # Check param data frame
   expect_s3_class(design$param, "data.frame")
@@ -209,16 +209,16 @@ test_that("single_stage_single_arm_tte returns correct structure", {
   expect_true("hr" %in% names(design$param))
   expect_true("two_sided" %in% names(design$param))
   
-  # Check Single_stage data frame
-  expect_s3_class(design$Single_stage, "data.frame")
-  expect_named(design$Single_stage, c("n", "ta", "c", "MTSL", "E", "P1"))
+  # Check single_stage data frame
+  expect_s3_class(design$single_stage, "data.frame")
+  expect_named(design$single_stage, c("n", "ta", "c", "MTSL", "E", "P1"))
   
   # Check values are reasonable
-  expect_true(design$Single_stage$n > 0)
-  expect_true(design$Single_stage$ta > 0)
-  expect_true(design$Single_stage$MTSL > design$Single_stage$ta)
-  expect_true(design$Single_stage$E > 0)
-  expect_true(design$Single_stage$P1 > 0 && design$Single_stage$P1 < 1)
+  expect_true(design$single_stage$n > 0)
+  expect_true(design$single_stage$ta > 0)
+  expect_true(design$single_stage$MTSL > design$single_stage$ta)
+  expect_true(design$single_stage$E > 0)
+  expect_true(design$single_stage$P1 > 0 && design$single_stage$P1 < 1)
 })
 
 test_that("single_stage_single_arm_tte validates input parameters", {

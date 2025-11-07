@@ -4,63 +4,62 @@
 \alias{simulate_trial}
 \title{Simulate a Trial from a Design Object}
 \usage{
-simulate_trial(design, shape, scale)
+simulate_trial(design, ...)
 }
 \arguments{
-\item{design}{A design object (e.g., from \code{two_stage_single_arm_tte()} or
-\code{single_stage_single_arm_tte()})}
+\item{design}{A design object from any blueprint design function}
 
-\item{shape}{Shape parameter for the survival distribution under simulation}
-
-\item{scale}{Scale parameter for the survival distribution under simulation}
+\item{...}{Additional arguments passed to the specific simulation function.
+For TTE designs: \code{shape} and \code{scale}.
+For basket trials: \code{p_true} and optionally \code{allocation_probs}.}
 }
 \value{
-A list containing:
-\item{reject_h0}{Logical; TRUE if null hypothesis is rejected}
-\item{stopped_early}{Logical; TRUE if trial stopped at interim (two-stage only; FALSE for single-stage)}
-\item{enrolled_n}{Number of patients enrolled}
-\item{interim_data}{Data frame of patient data at interim analysis (two-stage only; NULL for single-stage)}
-\item{final_data}{Data frame of patient data at final analysis}
-\item{interim_stat}{Test statistic value at interim (two-stage only; NA for single-stage)}
-\item{final_stat}{Test statistic value at final}
-\item{interim_time}{Calendar time of interim analysis (two-stage only; NA for single-stage)}
-\item{final_time}{Calendar time of final analysis}
-\item{interim_events}{Number of events observed at interim (two-stage only; NA for single-stage)}
-\item{final_events}{Number of events observed at final}
+A list with simulation results. The exact structure depends on the
+design type. See the specific simulation functions for details.
 }
 \description{
-Simulates a single realization of a trial based on a design object created by
-\code{two_stage_single_arm_tte()}, \code{single_stage_single_arm_tte()}, or other design
-functions in this package.
+Generic function that simulates a single realization of a trial based on a
+design object. This wrapper automatically dispatches to the appropriate
+simulation function based on the design class:
 
-This is a generic function that will work with any trial design created by
-blueprint package functions. It automatically detects whether the design is
-single-stage or two-stage based on the class attribute.
+\itemize{
+\item \code{two_stage_design}: Dispatches to \code{\link{simulate_two_stage_tte}}
+\item \code{single_stage_design}: Dispatches to \code{\link{simulate_single_stage_tte}}
+\item \code{basket_trial_design}: Dispatches to \code{\link{simulate_basket_trial}}
+}
 }
 \examples{
 \dontrun{
-# Two-stage design
+# Two-stage TTE design
 design_two <- two_stage_single_arm_tte(
   shape = 1.47327, S0 = 0.5, x0 = 3.5, hr = 0.5913,
   tf = 5, rate = 2, alpha = 0.05, beta = 0.2,
   dist = "WB", restricted = FALSE
 )
-
-# Simulate one trial under H0
 scale_h0 <- 3.5 / (-log(0.5))^(1/1.47327)
 trial_result <- simulate_trial(design_two, shape = 1.47327, scale = scale_h0)
 
-# Single-stage design
+# Single-stage TTE design
 design_single <- single_stage_single_arm_tte(
   shape = 1.0, S0 = 0.5, x0 = 0.5, hr = 0.667,
   tf = 1.0, rate = 32.4, alpha = 0.05, beta = 0.10,
   two_sided = TRUE, dist = "WB", restricted = FALSE
 )
-
-# Simulate one trial under H1
-scale_h0 <- 0.5 / (-log(0.5))^(1/1.0)
 scale_h1 <- scale_h0 / (0.667^(1/1.0))
 trial_result <- simulate_trial(design_single, shape = 1.0, scale = scale_h1)
+
+# Basket trial design
+design_basket <- two_stage_basket_trial(
+  K = 3, p0 = 0.10, pa = 0.25,
+  alpha = 0.05, beta = 0.2,
+  n_sims_design = 1000, seed = 123
+)
+trial_result <- simulate_trial(design_basket, p_true = c(0.10, 0.10, 0.10))
 }
 
+}
+\seealso{
+\code{\link{simulate_two_stage_tte}},
+\code{\link{simulate_single_stage_tte}},
+\code{\link{simulate_basket_trial}}
 }
