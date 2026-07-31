@@ -45,14 +45,19 @@ The design uses a one-sample log-rank test (OSLRT) to compare observed survival 
 
 ## Basic Usage
 
-### Example: Small-Cell Lung Cancer Trial
+### Example 1: Small-Cell Lung Cancer Trial (Unrestricted Follow-Up)
 
 Let's reproduce the design from Wu et al. (2020) for a trial evaluating immunotherapy as second-line treatment for small-cell lung cancer patients.
 
-**Background:**
-- Historical data: median PFS = 3.5 months (Topotecan)
-- Treatment goal: improve median PFS to 5 months
-- The historical PFS follows a Weibull distribution with shape parameter 1.47327
+**Scientific Background:**
+
+Small-cell lung cancer (SCLC) is the most aggressive type of lung cancer. Unfortunately, little progress has been made in improving survival rates for this malignancy over the last 30 years. Most patients experience relapse or disease progression after first-line therapy, thus a second-line therapy is often required. Recently, immunotherapy shows some advantages for treating relapse or refractory SCLC disease in patients.
+
+**Design Rationale:**
+
+The primary endpoint of the trial is progression-free survival (PFS). The PFS distribution from a randomized phase III trial using Topotecan as second-line treatment for patients with SCLC (von Pawel et al., 2014) is used as the null distribution for the trial design. The Weibull distribution is fitted to the PFS distribution with a shape parameter α = 1.47327 and median survival time m₀ = 3.5 months. Therefore, the survival distribution under the null hypothesis is S₀(u) = exp(-log(2)(u/m₀)^α) and the cumulative hazard function is Λ₀(u) = log(2)(u/m₀)^α.
+
+Investigators expect that the immunotherapy could increase the median PFS from 3.5 to 5 months. Thus, the trial design is to detect a hazard ratio of (3.5/5)^1.47327 = 0.5913 under the proportional hazard model, with one-sided type I error of α = 0.05 and power of 1 - β = 80%. We assume that patients are uniformly recruited with a constant accrual rate of 2 subjects per month. We suppose the restricted follow-up period is 5 months, and no patients are lost to follow-up within the restricted follow-up period.
 
 **Design parameters:**
 
@@ -71,46 +76,280 @@ design <- two_stage_single_arm_tte(
 )
 
 print(design)
+summary(design)
 ```
 
-### Interpreting the Results
+**Protocol Language:**
 
-The output contains three components:
+> **Title**: A Phase II Trial of [Immunotherapy Agent] in Patients with Relapsed or Refractory Small-Cell Lung Cancer
+>
+> **Primary Objective**: To evaluate the efficacy of [Immunotherapy Agent] in patients with relapsed or refractory small-cell lung cancer, as measured by progression-free survival.
+>
+> **Primary Endpoint**: Progression-free survival (PFS), defined as the time from enrollment until documented disease progression per RECIST v1.1 or death from any cause, whichever occurs first.
+>
+> **Statistical Design**: This is an optimal two-stage phase II trial design using the one-sample log-rank test to compare the observed PFS distribution against the historical control data from Topotecan (von Pawel et al., 2014).
+>
+> **Hypotheses**:
+> - Null Hypothesis (H₀): The treatment does not improve PFS compared to historical control (median PFS = 3.5 months)
+> - Alternative Hypothesis (H₁): The treatment improves median PFS to 5 months (hazard ratio = 0.5913)
+>
+> **Study Conduct**:
+>
+> *Stage I (Interim Futility Analysis)*:
+> We will enroll `r design$two_stage$n1` patients over approximately `r round(design$two_stage$t1, 1)` months (assuming an accrual rate of 2 patients per month). Each patient will be followed until an event (disease progression or death) or for a maximum of 5 months from enrollment. The interim analysis will be conducted at calendar time t₁ = `r round(design$two_stage$t1, 2)` months from study initiation.
+>
+> At the interim analysis, we will calculate the one-sample log-rank test statistic Z₁. The decision rule is:
+> - If Z₁ ≤ `r round(design$two_stage$c1, 4)`, the trial will be terminated for futility (conclude the treatment does not have sufficient activity)
+> - If Z₁ > `r round(design$two_stage$c1, 4)`, the trial will continue to Stage II
+>
+> *Stage II (Final Analysis)*:
+> If the trial continues, we will enroll an additional `r design$two_stage$n - design$two_stage$n1` patients (total n = `r design$two_stage$n`). All patients will continue to be followed for up to 5 months or until an event occurs. The final analysis will be conducted after the last enrolled patient has completed 5 months of follow-up or experienced an event (maximum total study length = `r round(design$two_stage$MTSL, 2)` months).
+>
+> At the final analysis, we will calculate the one-sample log-rank test statistic Z. The decision rule is:
+> - If Z ≤ `r round(design$two_stage$c, 4)`, we conclude that the treatment does not have sufficient efficacy
+> - If Z > `r round(design$two_stage$c, 4)`, we conclude that the treatment is promising and warrants further investigation
+>
+> **Statistical Considerations**:
+> - Type I error rate: 5% (one-sided)
+> - Power: 80% to detect improvement in median PFS from 3.5 to 5.0 months
+> - Under the null hypothesis, the expected sample size is `r round(design$two_stage$ES, 1)` patients
+> - Probability of early termination under H₀: `r round(design$two_stage$PS * 100, 1)`%
+> - The design assumes PFS follows a Weibull distribution with shape parameter 1.47327 under the null hypothesis
+> - A proportional hazards model is assumed for the alternative hypothesis
 
-1. **Input parameters**: Confirms your design specifications
-2. **Single-stage design**: For comparison
-3. **Two-stage design**: The optimal design with early stopping
+**Interpreting the Output:**
 
-For the two-stage design:
+Based on the design above, we will enroll `r design$two_stage$n1` patients during the first stage. After all `r design$two_stage$n1` patients are enrolled, we will conduct an interim analysis at approximately t₁ = `r round(design$two_stage$t1, 1)` months from study start. At the interim analysis, each patient is followed until an event (disease progression or death) before the end of the restricted follow-up at 5 months, or censored at the time of the interim analysis (approximately `r round(design$two_stage$t1, 1)` months) if the patient is free of an event. 
 
-- **n1**: Enroll this many patients in Stage 1
-- **c1**: Futility boundary - stop if Z₁ ≤ c₁
-- **n**: Total sample size if continuing to Stage 2
-- **c**: Efficacy boundary - reject H₀ if Z > c
-- **t1**: Calendar time for interim analysis
-- **MTSL**: Maximum total study length
-- **ES**: Expected sample size under H₀ (accounts for early stopping)
-- **PS**: Probability of stopping early under H₀
+If the first stage test statistic Z₁ < `r round(design$two_stage$c1, 2)`, we would stop the trial for futility. Otherwise, the trial would continue to the second stage and a total of `r design$two_stage$n` patients would be enrolled on the study. The final analysis would be conducted after the last patient on the study was followed for 5 months. If the second stage test statistic Z < `r round(design$two_stage$c, 2)`, we don't reject the null hypothesis and conclude no efficacy by the treatment. If Z ≥ `r round(design$two_stage$c, 2)`, we conclude that the treatment is promising.
 
-## Conducting the Trial
+### Example 2: Extended Follow-Up Period
 
-Based on the example above:
+If the restricted follow-up is extended to 10 months, the sample size requirements decrease substantially:
 
-### Stage 1
-1. Enroll `r design$Two_stage$n1` patients over approximately `r round(design$Two_stage$t1, 1)` months
-2. Follow each patient for up to 5 months or until an event (disease progression/death)
-3. Calculate the test statistic Z₁ at the interim analysis
-4. **Decision:**
-   - If Z₁ ≤ `r round(design$Two_stage$c1, 2)`, stop for futility (treatment not promising)
-   - If Z₁ > `r round(design$Two_stage$c1, 2)`, continue to Stage 2
+```{r extended_followup}
+design_10mo <- two_stage_single_arm_tte(
+  shape = 1.47327, S0 = 0.5, x0 = 3.5, hr = 0.5913,
+  tf = 10, rate = 2, alpha = 0.05, beta = 0.2, dist = "WB",
+  restricted = FALSE
+)
 
-### Stage 2
-1. Continue enrolling to reach total of `r design$Two_stage$n` patients
-2. Follow all patients for up to 5 months or until event
-3. Calculate final test statistic Z
-4. **Decision:**
-   - If Z ≤ `r round(design$Two_stage$c, 2)`, conclude no efficacy
-   - If Z > `r round(design$Two_stage$c, 2)`, conclude treatment is promising
+print(design_10mo)
+```
+
+**Protocol Language (Key Differences for Extended Follow-Up):**
+
+> *Stage I (Interim Futility Analysis)*:
+> We will enroll `r design_10mo$two_stage$n1` patients over approximately `r round(design_10mo$two_stage$t1, 1)` months. Each patient will be followed until an event or for a maximum of 10 months from enrollment. The interim analysis will be conducted at calendar time t₁ = `r round(design_10mo$two_stage$t1, 2)` months.
+>
+> Decision rule: Stop for futility if Z₁ ≤ `r round(design_10mo$two_stage$c1, 4)`; otherwise continue.
+>
+> *Stage II (Final Analysis)*:
+> If continuing, enroll to a total of `r design_10mo$two_stage$n` patients (`r design_10mo$two_stage$n - design_10mo$two_stage$n1` additional patients). Final analysis conducted after maximum total study length of `r round(design_10mo$two_stage$MTSL, 1)` months.
+>
+> Final decision rule: Conclude efficacy if Z > `r round(design_10mo$two_stage$c, 4)`.
+
+With a longer follow-up of 10 months, the total sample size is reduced to `r design_10mo$two_stage$n` patients (from `r design$two_stage$n` with 5-month follow-up) with `r design_10mo$two_stage$n1` patients at first stage. The extended follow-up allows more complete observation of PFS events, thus requiring fewer patients to achieve the same statistical power.
+
+### Example 3: Event-Free Survival in Pediatric Oncology
+
+Consider designing a trial evaluating 3-year event-free survival (EFS) in pediatric patients with a rare malignancy.
+
+**Design Rationale:**
+
+Historical data indicates a 3-year EFS of 72% with standard therapy. The new treatment is hypothesized to improve 3-year EFS to 86%. This is equivalent to assuming a hazard ratio of 0.459 under the proportional hazards assumption (0.72^0.459 = 0.86). Given the rarity of the disease, we assume an accrual rate of 20 patients per year, with each patient followed for 3 years (unrestricted follow-up). We assume failure times follow a Weibull distribution with shape = 1.
+
+```{r ped_example}
+design_ped <- two_stage_single_arm_tte(
+  shape = 1,          # Weibull shape (exponential distribution)
+  S0 = 0.72,          # 3-year EFS under null
+  x0 = 3,             # Landmark time point: 3 years
+  hr = 0.459,         # Hazard ratio (0.72^0.459 = 0.86)
+  tf = 3,             # Follow-up duration: 3 years
+  rate = 20,          # Accrual rate: 20 patients/year
+  alpha = 0.05,       # One-sided type I error
+  beta = 0.2,         # Type II error (80% power)
+  dist = "WB",        # Weibull distribution
+  restricted = FALSE  # Unrestricted follow-up
+)
+
+print(design_ped)
+summary(design_ped)
+```
+
+**Protocol Language:**
+
+> **Title**: A Phase II Study of [Novel Agent] in Pediatric Patients with [Rare Malignancy]
+>
+> **Primary Endpoint**: Event-free survival at 3 years (EFS-3yr), defined as the time from enrollment to the earliest of disease relapse, disease progression, death, or second malignancy.
+>
+> **Hypotheses**:
+> - H₀: 3-year EFS = 72% (consistent with historical standard therapy)
+> - H₁: 3-year EFS = 86% (improvement with novel agent)
+>
+> **Study Design**: Optimal two-stage design with unrestricted follow-up
+>
+> *Sample Size and Timeline*:
+> - Stage I: `r design_ped$two_stage$n1` patients over approximately `r round(design_ped$two_stage$t1/12, 1)` years
+> - Interim analysis at t₁ = `r round(design_ped$two_stage$t1, 1)` months
+> - Stage II: Up to `r design_ped$two_stage$n` patients total
+> - Maximum study duration: `r round(design_ped$two_stage$MTSL/12, 1)` years
+>
+> *Interim Analysis Decision Rule*:
+> - Terminate for futility if Z₁ ≤ `r round(design_ped$two_stage$c1, 3)`
+> - Continue enrollment if Z₁ > `r round(design_ped$two_stage$c1, 3)`
+>
+> *Final Analysis Decision Rule*:
+> - Declare treatment promising if Z > `r round(design_ped$two_stage$c, 3)`
+> - Conclude insufficient efficacy if Z ≤ `r round(design_ped$two_stage$c, 3)`
+>
+> *Statistical Properties*:
+> - Type I error: 5% (one-sided)
+> - Power: 80%
+> - Expected sample size under H₀: `r round(design_ped$two_stage$ES, 1)` patients
+> - Early stopping probability under H₀: `r round(design_ped$two_stage$PS * 100, 1)`%
+
+### Understanding Design Output Components
+
+The output from `two_stage_single_arm_tte()` contains three key sections:
+
+**1. Input Parameters (`$param`)**:
+Confirms the design specifications you provided, ensuring transparency and reproducibility.
+
+**2. Single-Stage Design (`$single_stage`)**:
+Provides the corresponding single-stage design for comparison:
+- `nsingle`: Required sample size without interim analysis
+- `tasingle`: Accrual time for single-stage design
+- `csingle`: Critical value (typically z₁₋α)
+
+**3. Two-Stage Design (`$two_stage`)**:
+The optimal two-stage design minimizing expected sample size under H₀:
+- `n1`: Sample size for Stage I
+- `c1`: Futility boundary for interim analysis (stop if Z₁ ≤ c₁)
+- `n`: Total sample size (maximum if trial continues to Stage II)
+- `c`: Efficacy boundary for final analysis (reject H₀ if Z > c)
+- `t1`: Calendar time for interim analysis (months from study start)
+- `MTSL`: Maximum total study length (accrual time + follow-up)
+- `ES`: Expected sample size under H₀ (accounts for early stopping)
+- `PS`: Probability of stopping early under H₀
+
+**Efficiency Comparison:**
+
+The two-stage design typically requires a slightly larger maximum sample size (n) than the single-stage design (nsingle), but the expected sample size under H₀ (ES) is smaller, demonstrating the efficiency gain from early stopping of ineffective treatments.
+
+## Conducting Trial Analyses
+
+### Interim Analysis
+
+When the interim analysis time arrives (at t₁), compute the one-sample log-rank test statistic Z₁ using the observed data and compare it to the futility boundary c₁.
+
+**Example: SCLC Trial Interim Analysis**
+
+Suppose in the SCLC trial (Example 1), we have enrolled `r design$two_stage$n1` patients and reached the interim analysis time of `r round(design$two_stage$t1, 1)` months. We have observed the following data:
+
+```{r interim_data}
+# Simulated interim data for demonstration
+set.seed(123)
+interim_events <- rbinom(1, design$two_stage$n1, prob = 0.65)  # ~65% event rate
+interim_time <- design$two_stage$t1
+
+cat("Interim Analysis Summary:\n")
+cat("  Number of patients enrolled:", design$two_stage$n1, "\n")
+cat("  Number of events observed:", interim_events, "\n")
+cat("  Calendar time:", round(interim_time, 1), "months\n")
+cat("  Critical value c₁:", round(design$two_stage$c1, 4), "\n\n")
+```
+
+To calculate the one-sample log-rank test statistic at interim:
+
+```{r interim_test, eval = FALSE}
+# In practice, you would use logrank_stat_wu() with actual patient data
+# This is a simplified illustration of the decision process
+
+# Hypothetical Z₁ calculation (in real analysis, use actual survival data)
+Z1_observed <- -0.25  # Example: observed test statistic
+
+cat("Decision Rule:\n")
+if (Z1_observed <= design$two_stage$c1) {
+  cat("  Z₁ =", round(Z1_observed, 4), "≤", round(design$two_stage$c1, 4), 
+      "\n  Decision: STOP for futility\n")
+  cat("  Interpretation: The treatment does not show sufficient promise.\n")
+} else {
+  cat("  Z₁ =", round(Z1_observed, 4), ">", round(design$two_stage$c1, 4), 
+      "\n  Decision: CONTINUE to Stage II\n")
+  cat("  Interpretation: Continue enrolling to", design$two_stage$n, "patients total.\n")
+}
+```
+
+**Data Requirements for Interim Analysis:**
+
+For each patient enrolled by time t₁, record:
+- Enrollment date
+- Event time (or censoring time if no event)
+- Event indicator (1 = event, 0 = censored)
+
+The `logrank_stat_wu()` function computes the one-sample log-rank test statistic:
+
+```{r logrank_usage, eval = FALSE}
+# Example data structure (replace with actual trial data)
+patient_data <- data.frame(
+  patient_id = 1:design$two_stage$n1,
+  enroll_date = seq.Date(as.Date("2024-01-01"), 
+                         by = "2 weeks", 
+                         length.out = design$two_stage$n1),
+  event_time = rweibull(design$two_stage$n1, shape = 1.47327, scale = 3.5),
+  event = rep(1, design$two_stage$n1)  # 1 = event, 0 = censored
+)
+
+# Calculate test statistic (using reference survival function)
+# Z1 <- logrank_stat_wu(
+#   time = patient_data$event_time,
+#   event = patient_data$event,
+#   S0 = function(t) exp(-(t/3.5)^1.47327),  # Weibull survival function
+#   analysis_time = design$two_stage$t1
+# )
+```
+
+### Final Analysis
+
+If the trial continues to Stage II, the final analysis is conducted after all `r design$two_stage$n` patients have been followed for the specified duration (or maximum total study length is reached).
+
+**Example: SCLC Trial Final Analysis**
+
+```{r final_data, eval = FALSE}
+# Simulated final data for demonstration
+set.seed(456)
+final_events <- rbinom(1, design$two_stage$n, prob = 0.70)
+
+cat("Final Analysis Summary:\n")
+cat("  Total patients enrolled:", design$two_stage$n, "\n")
+cat("  Total events observed:", final_events, "\n")
+cat("  Study duration:", round(design$two_stage$MTSL, 1), "months\n")
+cat("  Critical value c:", round(design$two_stage$c, 4), "\n\n")
+
+# Hypothetical final test statistic
+Z_final <- 1.75  # Example
+
+cat("Decision Rule:\n")
+if (Z_final > design$two_stage$c) {
+  cat("  Z =", round(Z_final, 4), ">", round(design$two_stage$c, 4), 
+      "\n  Decision: REJECT H₀ (treatment is promising)\n")
+  cat("  Interpretation: The treatment demonstrates sufficient efficacy.\n")
+  cat("  The observed PFS appears superior to the historical control.\n")
+} else {
+  cat("  Z =", round(Z_final, 4), "≤", round(design$two_stage$c, 4), 
+      "\n  Decision: FAIL TO REJECT H₀\n")
+  cat("  Interpretation: Insufficient evidence of treatment efficacy.\n")
+}
+```
+
+**Key Considerations for Analysis:**
+
+1. **Timing**: Analyses must occur at the pre-specified times (t₁ for interim, MTSL for final)
+2. **Censoring**: Patients without events are censored at their last follow-up time
+3. **Administrative Censoring**: At analysis time, patients still at risk are administratively censored
+4. **Reference Distribution**: Use the same null hypothesis survival function S₀(t) specified in the design
+5. **One-Sided Testing**: All tests are one-sided at the specified α level
 
 ## Effect of Follow-Up Duration
 
@@ -133,9 +372,9 @@ design_10mo <- two_stage_single_arm_tte(
 
 comparison <- data.frame(
   Follow_up = c("5 months", "10 months"),
-  Total_n = c(design_5mo$Two_stage$n, design_10mo$Two_stage$n),
-  Stage1_n = c(design_5mo$Two_stage$n1, design_10mo$Two_stage$n1),
-  Expected_n = c(design_5mo$Two_stage$ES, design_10mo$Two_stage$ES)
+  Total_n = c(design_5mo$two_stage$n, design_10mo$two_stage$n),
+  Stage1_n = c(design_5mo$two_stage$n1, design_10mo$two_stage$n1),
+  Expected_n = c(design_5mo$two_stage$ES, design_10mo$two_stage$ES)
 )
 
 print(comparison)
@@ -204,9 +443,9 @@ for (i in seq_along(hr_values)) {
     tf = 5, rate = 2, alpha = 0.05, beta = 0.2, dist = "WB",
     restricted = FALSE
   )
-  results$Single_Stage_n[i] <- design$Single_stage$nsingle
-  results$Two_Stage_n[i] <- design$Two_stage$n
-  results$Two_Stage_ES[i] <- design$Two_stage$ES
+  results$Single_Stage_n[i] <- design$single_stage$nsingle
+  results$Two_Stage_n[i] <- design$two_stage$n
+  results$Two_Stage_ES[i] <- design$two_stage$ES
 }
 
 print(results)

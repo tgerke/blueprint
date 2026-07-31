@@ -1,0 +1,165 @@
+---
+title: "The design grammar"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{The design grammar}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+blueprint organizes trial design work around a small set of verbs:
+
+1. **Search or construct** a design: `search_simon_designs()` finds candidates
+   meeting your error-rate constraints; `design_simon()` builds a design
+   directly from known parameters.
+2. **Assume** a data-generating truth: `assume_null()`, `assume_alternative()`,
+   or any `assume_response()` scenario you care about.
+3. **Simulate and evaluate**: `simulate_trial()` generates tidy trial
+   realizations; `evaluate()` returns operating characteristics, exact or
+   simulated.
+4. **Verify**: `verify()` puts exact and simulated operating characteristics
+   side by side, confirming that the design delivers what it promises.
+
+This vignette walks the full workflow with a Simon two-stage design, the
+workhorse of single-arm phase II oncology trials.
+
+```{r setup}
+library(blueprint)
+```
+
+## Search for a design
+
+Suppose a response rate of 20% is uninteresting and 40% would justify further
+study. We want one-sided type I error at most 5% and power at least 80%.
+
+```{r search}
+candidates <- search_simon_designs(
+  p0 = 0.20,
+  pa = 0.40,
+  alpha = 0.05,
+  power = 0.80,
+  n_max = 60
+)
+candidates
+```
+
+The search returns one candidate per total sample size, each already meeting
+the constraints. Two are flagged: the optimal design minimizes the expected
+sample size when the treatment is inactive, and the minimax design minimizes
+the worst-case total. Picking one gives a design object.
+
+```{r pick}
+design <- pick_design(candidates, "optimal")
+design
+```
+
+If the trade-off matters for your setting (the minimax design here caps
+enrollment at 33 instead of 43, at the cost of a larger expected sample
+size), pick the other flag or construct any row directly with
+`design_simon()`.
+
+## Reproduce a design from a protocol
+
+Search is not the only door in. When a protocol already specifies the design,
+construct it directly and interrogate it:
+
+```{r construct}
+protocol_design <- design_simon(
+  n1 = 18, r1 = 4, n = 33, r = 10,
+  p0 = 0.20, pa = 0.40
+)
+evaluate(protocol_design)
+```
+
+## Verify by simulation
+
+Exact calculations say what the design should do. `verify()` checks that
+simulated trials agree:
+
+```{r verify}
+verify(design, n_sims = 10000, seed = 2026)
+```
+
+## Evaluate scenarios the design was not built for
+
+Designs get built for two hypotheses, but trials happen in between. Scenario
+objects make it easy to ask how the design behaves at any truth:
+
+```{r scenarios}
+ocs <- evaluate(design, under = list(
+  "p = 0.20 (null)" = assume_response(0.20),
+  "p = 0.25" = assume_response(0.25),
+  "p = 0.30" = assume_response(0.30),
+  "p = 0.35" = assume_response(0.35),
+  "p = 0.40 (alternative)" = assume_response(0.40)
+))
+ocs
+```
+
+Because the result is a tibble, it drops straight into a report table:
+
+```{r gt, eval = requireNamespace("gt", quietly = TRUE)}
+ocs |>
+  gt::gt() |>
+  gt::cols_label(
+    scenario = "Scenario",
+    p_true = "True rate",
+    prob_success = "P(reject null)",
+    prob_early_stop = "P(stop at stage 1)",
+    expected_n = "E[N]"
+  ) |>
+  gt::cols_hide("method") |>
+  gt::fmt_number(columns = c("prob_success", "prob_early_stop"), decimals = 3) |>
+  gt::fmt_number(columns = "expected_n", decimals = 1)
+```
+
+## Simulate individual trials
+
+`simulate_trial()` returns one row per simulated trial, which is useful when
+you want the full distribution rather than its summaries:
+
+```{r simulate}
+sims <- simulate_trial(
+  design,
+  under = assume_response(0.30),
+  n_sims = 5000,
+  seed = 2026
+)
+sims
+
+table(sims$n_enrolled) / nrow(sims)
+```
+
+## Draft the protocol paragraph
+
+`draft_protocol_text()` writes the sample size justification in the phrasing
+conventional for protocols. It returns a plain string, so it works inline in
+Quarto or R Markdown:
+
+```{r protocol, results = "asis"}
+cat(draft_protocol_text(design))
+```
+
+## Tidy summaries
+
+`tidy()` and `glance()` follow broom conventions: `tidy()` gives the
+operating characteristics under the design's own hypotheses, and `glance()`
+gives a one-row design summary for tabulating several designs together.
+
+```{r tidy}
+tidy(design)
+glance(design)
+```
+
+## References
+
+Simon, R. (1989). Optimal two-stage designs for phase II clinical trials.
+*Controlled Clinical Trials*, 10(1), 1-10.
+https://doi.org/10.1016/0197-2456(89)90015-9

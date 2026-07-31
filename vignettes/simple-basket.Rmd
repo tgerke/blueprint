@@ -1,0 +1,388 @@
+---
+title: "Simple Basket Trial Design"
+author: "Travis Gerke"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Simple Basket Trial Design}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+## Overview
+
+The `simple_basket_trial()` function implements the adaptive two-stage basket trial design proposed by @cunanan2017. This design is **simpler and more efficient** than conducting independent trials in each basket when the targeted therapy works in most or all tumor types.
+
+### Key Features
+
+- **Adaptive design**: Interim heterogeneity assessment determines analysis strategy
+- **Two paths**:
+  - **Heterogeneous**: Analyze baskets separately if response rates differ
+  - **Homogeneous**: Pool all baskets if response rates similar
+- **Frequentist framework**: Fisher's exact test and binomial tests (no Bayesian MCMC)
+- **Efficiency gains**: Up to 36% fewer patients when drug works in all baskets
+- **FWER control**: Family-wise error rate controlled at target level
+
+### When to Use This Design
+
+✅ **Use when:**
+- Testing a targeted therapy across multiple tumor types with shared molecular alteration
+- Drug is expected to work in most/all baskets (homogeneous efficacy)
+- Want simpler alternative to Bayesian basket designs
+- Need frequentist framework with clear Type I error control
+
+❌ **Don't use when:**
+- Drug only expected to work in 1-2 baskets (use independent trials or Bayesian borrowing)
+- Strong FWER control required across all scenarios (this design has weak control)
+- Very heterogeneous effects expected across baskets
+
+## Methodology
+
+### Design Structure
+
+The simple basket trial proceeds in two stages with an interim analysis:
+
+**Stage 1**: Accrue N₁ patients total across K baskets
+
+- Minimum 3 patients per basket (default)
+- Maximum 10 patients per basket (default)
+- Example: N₁=35 for K=5 baskets ≈ 7 per basket
+
+**Interim Analysis**: Test of Homogeneity (TOH)
+
+- Fisher's exact test on K×2 contingency table (responders vs non-responders)
+- Critical value γ (tuning parameter between 0 and 1)
+- **If p-value ≤ γ**: Pursue **heterogeneous path** (baskets appear different)
+- **If p-value > γ**: Pursue **homogeneous path** (baskets appear similar)
+
+**Stage 2 - Heterogeneous Path**:
+
+For each basket k:
+
+1. **Futility rule**: If < r_s responders in stage 1, stop basket k
+2. Otherwise, accrue n₂ₖ additional patients to basket k
+3. **Final analysis**: Binomial test at level αS/K* (Bonferroni correction)
+   - K* = number of continuing baskets
+4. Reject H₀ for basket k if p-value ≤ αS/K*
+
+**Stage 2 - Homogeneous Path**:
+
+1. **Futility rule**: If < r_c total responders in stage 1, stop all baskets
+2. Otherwise, accrue N₂ total additional patients (pooled across baskets)
+3. **Final analysis**: One-sample binomial test at level αC
+4. Reject H₀ for **all baskets** or **none**
+
+### Notation
+
+| Symbol | Description |
+|--------|-------------|
+| K | Number of baskets |
+| θ₀ | Null response rate |
+| θₐ | Alternative (active) response rate |
+| A | Number of truly active baskets (0 to K) |
+| N₁ | Total stage 1 sample size across all baskets |
+| N₂ | Total stage 2 sample size (homogeneous path) |
+| n₂ₖ | Stage 2 sample size per basket (heterogeneous path) |
+| r_s | Minimum responders per basket to continue (heterogeneous) |
+| r_c | Minimum total responders to continue (homogeneous) |
+| γ | Heterogeneity test critical value (0-1) |
+| αS | Significance level for separate analyses (heterogeneous) |
+| αC | Significance level for combined analysis (homogeneous) |
+| ε | Target family-wise error rate (FWER) |
+| 1-β | Target power |
+
+### Operating Characteristics
+
+For each scenario (A = number of active baskets):
+
+- **FWER**: P(reject ≥1 basket | all null) — only relevant when A=0
+- **Marginal Power**: P(reject basket k | basket k active)
+- **EN**: Expected total sample size
+- **ET**: Expected trial duration (months)
+- **Sensitivity**: P(correctly identify active basket)
+- **Specificity**: P(correctly identify inactive basket)
+
+## Example: Replicating Cunanan et al. (2017) Table 2
+
+The paper presents a K=5 basket design with θ₀=0.15 and θₐ=0.45. Let's replicate their results.
+
+### Design Optimization
+
+```{r design, eval=FALSE}
+library(blueprint)
+
+# Replicate Table 2: K=5, θ0=0.15, θa=0.45
+design <- simple_basket_trial(
+  K = 5,
+  p0 = 0.15,
+  pa = 0.45,
+  N1 = 35,              # Total stage 1 sample size
+  N2 = 20,              # Total stage 2 (homogeneous path)
+  r_s = 1,              # Min responders per basket to continue
+  r_c = 5,              # Min total responders to continue
+  target_fwer = 0.05,   # 5% family-wise error rate
+  target_power = 0.80,  # 80% power at calibration scenario
+  min_power = 0.70,     # 70% minimum power when A=1
+  accrual_rate = 2,     # 2 patients/month per basket
+  calibrate_at_A = 2,   # Calibrate power when A=2 active
+  # Narrow grid for faster computation
+  n2k_range = 13:17,
+  gamma_range = seq(0.4, 0.6, by = 0.05),
+  alpha_s_range = seq(0.05, 0.09, by = 0.01),
+  alpha_c_range = seq(0.04, 0.06, by = 0.01),
+  n_sims = 1000,
+  seed = 4206
+)
+
+# View design
+print(design)
+```
+
+**Expected optimal parameters** (from Cunanan et al. Table 2):
+
+- n₂ₖ = 15 patients
+- γ = 0.52
+- αS = 0.07
+- αC = 0.05
+
+### Operating Characteristics
+
+```{r summary, eval=FALSE}
+# Detailed operating characteristics
+summary(design)
+```
+
+**Expected results** (from Table 2):
+
+| Scenario | FWER/Power | EN | ET (months) |
+|----------|------------|-----|-------------|
+| A=0 (all null) | FWER=5% | 58 | 7.0 |
+| A=1 | Power=70% | 74 | 9.5 |
+| A=2 (calibration) | Power=80% | 83 | 10.4 |
+| A=3 | Power=84% | 86 | 10.5 |
+| A=4 | Power=86% | 88 | 10.2 |
+| A=5 (all active) | Power=88% | 78 | 8.3 |
+
+### Key Insights
+
+1. **FWER Control**: The design maintains FWER ≤ 5% when all baskets are null
+
+2. **Calibrated Power**: Achieves 80% power when 2 baskets are active (as designed)
+
+3. **Minimum Power**: Maintains ≥70% power even when only 1 basket is active
+
+4. **Efficiency Gains**: 
+   - A=5: EN=78 vs 121 for independent designs (36% reduction!)
+   - A=0: EN=58 (early futility stopping)
+   
+5. **Power Increases with A**: Due to pooling in homogeneous path
+
+6. **Trade-off**: Specificity decreases as A increases (risk of false positives due to pooling)
+
+## Understanding the Two Paths
+
+### Heterogeneous Path Example
+
+Suppose after stage 1:
+- Basket 1: 4/7 responses (57%)
+- Basket 2: 3/7 responses (43%)
+- Basket 3: 0/7 responses (0%)
+- Basket 4: 1/7 responses (14%)
+- Basket 5: 1/7 responses (14%)
+
+Fisher's exact test p-value = 0.03 < γ=0.52 → **Heterogeneous**
+
+Continue baskets 1, 2, 4, 5 (≥1 responder). Stop basket 3 for futility.
+
+Accrue n₂ₖ=15 more patients per continuing basket.
+
+Final analysis: Test each basket separately with α = 0.07/4 = 0.0175
+
+### Homogeneous Path Example
+
+Suppose after stage 1:
+- Basket 1: 3/7 responses (43%)
+- Basket 2: 3/7 responses (43%)
+- Basket 3: 2/7 responses (29%)
+- Basket 4: 2/7 responses (29%)
+- Basket 5: 2/7 responses (29%)
+
+Fisher's exact test p-value = 0.95 > γ=0.52 → **Homogeneous**
+
+Total responses = 12 ≥ r_c=5 → Continue to stage 2
+
+Accrue N₂=20 total additional patients (pooled).
+
+Final analysis: One-sample test with α = 0.05
+
+If significant → Declare **all baskets active**  
+If not significant → Declare **all baskets inactive**
+
+## Comparison to Other Designs
+
+### vs. Independent Simon Two-Stage Designs
+
+**Advantages of Simple Basket:**
+- ✅ 36% fewer patients when drug works in all baskets (78 vs 121)
+- ✅ Faster trial completion when homogeneous
+- ✅ Higher power when A ≥ 3
+
+**Disadvantages:**
+- ❌ Lower power when A=1 (70% vs 79%)
+- ❌ Slightly more patients when A=1 (74 vs 69)
+- ❌ Risk of false positives in inactive baskets (specificity ↓ as A ↑)
+
+### vs. Bayesian Basket Designs (e.g., Berry et al.)
+
+**Advantages of Simple Basket:**
+- ✅ Simpler implementation (no MCMC)
+- ✅ Faster computation
+- ✅ Frequentist framework (clearer Type I error interpretation)
+- ✅ No prior specification required
+
+**Disadvantages:**
+- ❌ Less flexible borrowing across baskets
+- ❌ Weak FWER control (only at A=0)
+- ❌ All-or-none decision in homogeneous path
+
+## Practical Considerations
+
+### Choosing N₁, N₂, r_s, r_c
+
+The paper recommends:
+
+1. **N₁**: Choose based on budget/timeline
+   - Default: K × (first stage of Simon optimal design)
+   - Example: For K=5, N₁ = 35
+
+2. **r_s**: Usually 1 (continue if any response observed)
+   - Being conservative avoids missing active baskets
+
+3. **r_c**: Usually K (≈1 per basket)
+   - For K=5, r_c = 5 is reasonable
+
+4. **N₂**: Smaller than N₁ (pooling provides power)
+   - Should be in range of Simon optimal stage 2
+   - Example: N₂ = 20 for K=5
+
+### Unequal Accrual Rates
+
+If baskets accrue at different rates, specify `accrual_rate` as vector:
+
+```{r unequal, eval=FALSE}
+design_unequal <- simple_basket_trial(
+  K = 5,
+  p0 = 0.15,
+  pa = 0.45,
+  N1 = 35,
+  N2 = 20,
+  r_s = 1,
+  r_c = 5,
+  accrual_rate = c(3, 2, 1, 1, 1),  # Fast accrual in baskets 1-2
+  # ... other parameters
+)
+```
+
+**Impact**: 
+- Trial duration increases substantially
+- Power may increase if active baskets accrue fast
+- Power may decrease if active baskets accrue slow
+
+### Calibration Strategy
+
+For **K=5 baskets**: Use `calibrate_at_A = 2`
+
+For **K≥10 baskets**: Use `calibrate_at_A = 3`
+
+**Why?** The calibration scenario should be "middle ground":
+- Not too pessimistic (A=1)
+- Not too optimistic (A=K)
+- Provides robust operating characteristics across scenarios
+
+### Computational Performance
+
+Grid search can be slow for large grids. To speed up:
+
+1. **Narrow the search ranges** around expected optimal values
+2. **Use parallel processing**: `parallel = TRUE, n_cores = 8`
+3. **Reduce n_sims** initially (use 100-200 for exploration, 1000+ for final)
+4. **Two-phase search**:
+   - Phase 1: Coarse grid with n_sims=200
+   - Phase 2: Fine grid around optimal with n_sims=1000
+
+## Simulation-Based Validation
+
+To validate a specific design, compute operating characteristics directly:
+
+```{r validate, eval=FALSE}
+# Compute OCs for specific design parameters
+oc_A0 <- simulate_simple_operating_characteristics(
+  K = 5,
+  A = 0,  # All baskets null
+  p0 = 0.15,
+  pa = 0.45,
+  N1 = 35,
+  N2 = 20,
+  n2k = 15,
+  r_s = 1,
+  r_c = 5,
+  gamma = 0.52,
+  alpha_s = 0.07,
+  alpha_c = 0.05,
+  accrual_rate = rep(2, 5),
+  n_sims = 5000,
+  seed = 123
+)
+
+cat("FWER:", oc_A0$fwer, "\n")
+cat("Expected N:", oc_A0$EN, "\n")
+cat("Expected duration:", oc_A0$ET, "months\n")
+
+# A=2 scenario
+oc_A2 <- simulate_simple_operating_characteristics(
+  K = 5, A = 2,  # First 2 baskets active
+  # ... same parameters ...
+  n_sims = 5000
+)
+
+cat("Power (Basket 1):", oc_A2$marginal_power[1], "\n")
+cat("Power (Basket 2):", oc_A2$marginal_power[2], "\n")
+cat("Expected N:", oc_A2$EN, "\n")
+```
+
+## Reporting Guidelines
+
+When reporting results from a simple basket trial, include:
+
+1. **Design parameters**: K, N₁, N₂, n₂ₖ, r_s, r_c, γ, αS, αC
+2. **Operating characteristics** for all scenarios (A=0 to K)
+3. **Calibration strategy** and justification
+4. **Actual trial results**:
+   - Stage 1 sample sizes and responses per basket
+   - Heterogeneity test p-value and path selected
+   - Stage 2 sample sizes and responses
+   - Final decisions per basket
+   - Total sample size and duration
+5. **Comparison to planned OCs**
+
+## References
+
+<div id="refs"></div>
+
+## Session Info
+
+```{r session}
+sessionInfo()
+```

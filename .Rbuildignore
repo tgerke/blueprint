@@ -7,3 +7,7 @@
 ^docs$
 ^pkgdown$
 ^dev-docs$
+^vignettes/articles$
+^README\.html$
+^\.claude$
+^CLAUDE\.md$
