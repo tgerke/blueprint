@@ -19,8 +19,29 @@ home:
     href: https://doi.org/10.1002/pst.1983
   - text: Jing et al. (2022) Paper
     href: https://doi.org/10.1002/sim.9576
+  - text: Cunanan et al. (2017) Paper
+    href: https://doi.org/10.1002/sim.7227
 
 reference:
+  - title: "Design grammar"
+    desc: "Construct, search, simulate, and verify designs through a shared modular interface"
+    contents:
+      - design_simon
+      - search_simon_designs
+      - pick_design
+      - assume_response
+      - assume_survival
+      - assume_null
+      - assume_alternative
+      - evaluate
+      - evaluate.simon_design
+      - verify
+      - simulate_trial.simon_design
+      - summary.simon_design
+      - tidy.simon_design
+      - draft_protocol_text
+      - is_trial_design
+      - reexports
   - title: "Two-Stage Time-to-Event Designs"
     desc: "Functions for calculating two-stage single-arm trial designs with time-to-event endpoints"
     contents:
@@ -39,6 +60,16 @@ reference:
       - print.basket_trial_design
       - summary.basket_trial_design
       - print.summary.basket_trial_design
+  - title: "Simple Basket Trial Designs"
+    desc: "Adaptive two-stage basket trial with heterogeneity assessment (Cunanan et al. 2017)"
+    contents:
+      - simple_basket_trial
+      - simulate_simple_operating_characteristics
+      - simulate_simple_trial_once
+      - test_heterogeneity
+      - print.simple_basket_design
+      - summary.simple_basket_design
+      - print.summary.simple_basket_design
   - title: Simulation Functions
     desc: Functions for simulating trials and validating operating characteristics
     contents:
@@ -54,6 +85,10 @@ reference:
     - logrank_stat_wu
 
 articles:
+  - title: "Design grammar"
+    desc: "The modular design workflow: search, construct, simulate, verify"
+    contents:
+      - design-grammar
   - title: "Two-Stage Time-to-Event Designs"
     desc: "Two-stage TTE design workflow and examples"
     contents:
@@ -67,6 +102,7 @@ articles:
     contents:
       - basket-trial
       - articles/jing-validation
+      - simple-basket
   - title: "Validation"
     desc: "Comparison with published methodology"
     contents:

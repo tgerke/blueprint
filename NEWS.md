@@ -1,5 +1,23 @@
 # blueprint 0.0.0.9000
 
+## Design grammar
+
+* Added a modular design grammar: all new design classes share the
+  `trial_design` contract, and data-generating assumptions live in `scenario`
+  objects created with `assume_response()` and `assume_survival()`, or derived
+  from a design with `assume_null()` and `assume_alternative()`.
+* Added `design_simon()` to construct Simon (1989) two-stage designs from
+  known parameters, and `search_simon_designs()` plus `pick_design()` to find
+  optimal and minimax designs meeting target error rates. Exact operating
+  characteristics are computed in closed form with no dependency on clinfun.
+* Added generics `evaluate()` (operating characteristics, exact or simulated),
+  `verify()` (exact versus simulated operating characteristics side by side),
+  `draft_protocol_text()` (protocol-ready sample size paragraph), and
+  broom-style `tidy()`/`glance()` methods.
+* `simulate_trial()` is now a true S3 generic. Legacy design classes
+  (`two_stage_design`, `single_stage_design`, `basket_trial_design`) keep
+  their existing behavior through delegating methods.
+
 ## Initial Development
 
 ### New Features

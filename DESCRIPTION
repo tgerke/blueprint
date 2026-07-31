@@ -16,11 +16,15 @@ BugReports: https://github.com/tgerke/blueprint/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
+Imports:
+    generics,
+    tibble
 Suggests:
     testthat (>= 3.0.0),
     logspline,
     knitr,
-    rmarkdown
+    rmarkdown,
+    gt
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Config/Needs/website: rmarkdown
